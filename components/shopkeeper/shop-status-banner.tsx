@@ -25,8 +25,14 @@ const CONTENT: Record<MyShop["status"], { title: string; body: string; tone: str
   },
 };
 
+const CLOSED = {
+  title: "Your shop is verified but closed",
+  body: "Customers can't find it or place new orders until it reopens. Existing orders are still in your list.",
+  tone: "border-warning/40 bg-warning/10",
+};
+
 export function ShopStatusBanner({ shop }: { shop: MyShop }) {
-  const c = CONTENT[shop.status];
+  const c = shop.status === "verified" && shop.closure ? CLOSED : CONTENT[shop.status];
   return (
     <div role="status" className={cn("flex flex-col gap-1 rounded-xl border p-4", c.tone)}>
       <p className="font-semibold">{c.title}</p>
@@ -36,7 +42,7 @@ export function ShopStatusBanner({ shop }: { shop: MyShop }) {
           <span className="font-medium">Reason:</span> {shop.statusReason}
         </p>
       )}
-      {shop.status === "verified" && (
+      {shop.status === "verified" && !shop.closure && (
         <Link href={`/shops/${shop.slug}`} className="text-sm font-medium text-primary hover:underline">
           View your public page →
         </Link>

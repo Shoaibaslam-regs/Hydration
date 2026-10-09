@@ -11,7 +11,7 @@ describe("buildShopSearchPipeline", () => {
       $geoNear: {
         near: { type: "Point", coordinates: [74.3, 31.5] },
         maxDistance: 5000,
-        query: { status: "verified" },
+        query: { status: "verified", closure: null },
       },
     });
   });

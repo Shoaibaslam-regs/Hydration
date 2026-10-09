@@ -11,9 +11,12 @@ const WINDOW_MS = 15 * 60 * 1000;
 /** POST /api/auth/login */
 export const POST = apiHandler(async (req) => {
   const ip = clientIp(req);
-  rateLimit(`login-ip:${ip}`, 50, WINDOW_MS);
+  await rateLimit(`login-ip:${ip}`, 50, WINDOW_MS);
   const input = await parseBody(req, loginSchema);
-  rateLimit(`login:${ip}:${input.email}`, 10, WINDOW_MS);
+  await rateLimit(`login:${ip}:${input.email}`, 10, WINDOW_MS);
+  // Per-account limit independent of IP: X-Forwarded-For can be spoofed, so
+  // the IP-scoped limits alone don't stop guessing against one account.
+  await rateLimit(`login-account:${input.email}`, 30, WINDOW_MS);
 
   const user = await authenticate(input);
   if (!user) throw ApiError.unauthorized("Incorrect email or password");

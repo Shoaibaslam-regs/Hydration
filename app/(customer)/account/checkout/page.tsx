@@ -46,6 +46,16 @@ async function Checkout({ searchParams }: { searchParams: PageProps<"/account/ch
     );
   }
 
+  if (shop.closure) {
+    return (
+      <EmptyState
+        title={`${shop.name} is closed right now`}
+        description="It isn't taking new orders at the moment. Find another shop nearby."
+        action={<Link href="/shops" className={buttonClasses()}>Find shops</Link>}
+      />
+    );
+  }
+
   const cart = decodeCart(itemsParam);
   const byId = new Map(shop.products.map((p) => [p.id, p]));
   const lines = cart.flatMap((c) => {

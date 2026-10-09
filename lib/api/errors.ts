@@ -5,6 +5,8 @@ export type ApiErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "PAYLOAD_TOO_LARGE"
+  | "UPSTREAM_ERROR"
   | "RATE_LIMITED"
   | "INTERNAL_ERROR";
 
@@ -34,6 +36,12 @@ export class ApiError extends Error {
   }
   static conflict(message = "Conflict") {
     return new ApiError(409, "CONFLICT", message);
+  }
+  static payloadTooLarge(limitBytes: number) {
+    return new ApiError(413, "PAYLOAD_TOO_LARGE", "Request is too large", { limitBytes });
+  }
+  static upstream(message = "A service we depend on isn't responding. Please try again.") {
+    return new ApiError(502, "UPSTREAM_ERROR", message);
   }
   static rateLimited(retryAfterSeconds: number) {
     return new ApiError(429, "RATE_LIMITED", "Too many attempts. Please try again later.", { retryAfterSeconds });

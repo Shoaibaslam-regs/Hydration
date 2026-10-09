@@ -7,7 +7,7 @@ import { registerSchema } from "@/lib/validation/auth";
 
 /** POST /api/auth/register — create a customer or shopkeeper account and sign in. */
 export const POST = apiHandler(async (req) => {
-  rateLimit(`register:${clientIp(req)}`, 10, 60 * 60 * 1000);
+  await rateLimit(`register:${clientIp(req)}`, 10, 60 * 60 * 1000);
   const input = await parseBody(req, registerSchema);
   const user = await registerUser(input);
   await createSession(user);

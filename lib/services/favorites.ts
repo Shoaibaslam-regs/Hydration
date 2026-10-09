@@ -46,5 +46,6 @@ export async function listFavoriteShops(userId: string): Promise<ShopSummary[]> 
       hours: { opensAt: s.hours?.opensAt ?? "", closesAt: s.hours?.closesAt ?? "" },
       imageUrl: s.imageUrl ?? null,
       distanceKm: null,
+      isClosed: Boolean(s.closure),
     }));
 }

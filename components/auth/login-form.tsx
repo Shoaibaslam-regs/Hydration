@@ -46,6 +46,9 @@ export function LoginForm() {
       <Button type="submit" size="lg" disabled={pending}>
         {pending ? "Logging in…" : "Log in"}
       </Button>
+      <p className="text-center text-xs text-muted-foreground">
+        Forgot your password? Contact the Aqua team and we&apos;ll send you a reset link.
+      </p>
       <p className="text-center text-sm text-muted-foreground">
         New to Aqua?{" "}
         <Link href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"} className="font-medium text-primary hover:underline">

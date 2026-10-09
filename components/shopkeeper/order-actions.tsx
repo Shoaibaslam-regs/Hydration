@@ -77,7 +77,7 @@ export function OrderActions({ orderId, nextStatuses }: { orderId: string; nextS
               </Button>
             ))}
             {destructive.map((s) => (
-              <Button key={s} variant="secondary" onClick={() => move(s)} disabled={pending !== null} className="text-danger">
+              <Button key={s} variant="danger-outline" onClick={() => move(s)} disabled={pending !== null}>
                 {SHOPKEEPER_ACTION_LABELS[s]}
               </Button>
             ))}

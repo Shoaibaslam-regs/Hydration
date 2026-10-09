@@ -3,8 +3,9 @@ import { Suspense } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Container } from "@/components/ui/container";
 import { getSessionUser } from "@/lib/auth/session";
+import { ActiveDashboardNav, DashboardNavLinks, type DashboardNavItem } from "./dashboard-nav";
 
-export type DashboardNavItem = { href: string; label: string };
+export type { DashboardNavItem };
 
 /**
  * Shared chrome for the customer, shopkeeper and admin areas. The shell is
@@ -40,21 +41,12 @@ export function DashboardShell({
       </header>
 
       <Container className="flex flex-1 flex-col gap-6 py-6 md:flex-row md:py-8">
-        <nav aria-label={`${title} navigation`} className="-mx-4 overflow-x-auto px-4 md:mx-0 md:w-52 md:shrink-0 md:px-0">
-          <ul className="flex gap-1 md:flex-col">
-            {nav.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="block whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground"
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
+        <nav aria-label={`${title} navigation`} className="md:w-52 md:shrink-0">
+          <Suspense fallback={<DashboardNavLinks items={nav} activePath={null} />}>
+            <ActiveDashboardNav items={nav} />
+          </Suspense>
         </nav>
-        <main className="min-w-0 flex-1">{children}</main>
+        <main id="main" className="min-w-0 flex-1">{children}</main>
       </Container>
     </div>
   );

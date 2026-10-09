@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
+import { ShopAvailability } from "@/components/shopkeeper/shop-availability";
 import { ShopStatusBanner } from "@/components/shopkeeper/shop-status-banner";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
@@ -59,6 +60,7 @@ async function ShopOverview() {
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold">{shop.name}</h1>
       <ShopStatusBanner shop={shop} />
+      {shop.status === "verified" && <ShopAvailability shop={shop} />}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((t) => (

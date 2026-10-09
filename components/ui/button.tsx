@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "danger-ghost";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
@@ -8,6 +8,9 @@ const variants: Record<Variant, string> = {
   secondary: "border border-border bg-card text-foreground hover:bg-muted",
   ghost: "text-foreground hover:bg-muted",
   danger: "bg-danger text-white hover:opacity-90",
+  // Destructive actions that shouldn't shout: red text, quiet surface.
+  "danger-outline": "border border-danger/40 bg-card text-danger hover:bg-danger/10",
+  "danger-ghost": "text-danger hover:bg-danger/10",
 };
 
 const sizes: Record<Size, string> = {

@@ -6,9 +6,13 @@ const ACTION_LABELS: Record<string, string> = {
   "shop.verified": "Verified shop",
   "shop.rejected": "Rejected shop",
   "shop.suspended": "Suspended shop",
+  "shop.closed": "Closed shop",
+  "shop.reopened": "Reopened shop",
+  "shop.removed": "Removed shop permanently",
   "user.suspend": "Suspended user",
   "user.activate": "Reactivated user",
   "user.signOutEverywhere": "Signed out all sessions",
+  "user.resetLink": "Created password reset link",
   "order.cancel": "Cancelled order",
 };
 

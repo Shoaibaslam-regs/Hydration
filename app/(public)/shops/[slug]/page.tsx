@@ -67,7 +67,16 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
           <h2 id="products-heading" className="text-lg font-semibold">
             Order water
           </h2>
-          {shop.products.length === 0 ? (
+          {shop.closure ? (
+            <div role="status" className="rounded-xl border border-warning/50 bg-warning/10 p-4">
+              <p className="font-semibold">This shop is closed right now</p>
+              <p className="text-sm text-muted-foreground">
+                {shop.closure.by === "shopkeeper" && shop.closure.reason
+                  ? shop.closure.reason
+                  : "It isn't taking new orders at the moment. Save it to find it again later, or find another shop nearby."}
+              </p>
+            </div>
+          ) : shop.products.length === 0 ? (
             <EmptyState title="No products listed yet" />
           ) : (
             <OrderBuilder shopSlug={shop.slug} products={shop.products} deliveryFee={shop.deliveryFee} />

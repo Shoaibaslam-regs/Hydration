@@ -89,6 +89,31 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
         </Card>
       )}
 
+      {shop.status === "verified" && (
+        <Card className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Availability</CardTitle>
+            <Badge tone={shop.closure ? "danger" : "success"}>{shop.closure ? "Closed" : "Open"}</Badge>
+          </div>
+          {shop.closure && (
+            <p className="text-sm text-muted-foreground">
+              Closed by {shop.closure.by === "admin" ? "an admin" : "the shopkeeper"} on {formatDateTime(shop.closure.at)}
+              {shop.closure.reason && <> — “{shop.closure.reason}”</>}.
+              {shop.closure.by === "shopkeeper" && " Closing it as admin stops the shopkeeper from reopening it."}
+            </p>
+          )}
+          <AdminActions
+            endpoint={`/api/admin/shops/${shop.id}/closure`}
+            method="POST"
+            reasonHint="Shown to the shopkeeper. Customers only see that the shop is closed."
+            actions={[
+              ...(shop.closure ? [{ label: "Reopen shop", body: { action: "reopen" } }] : []),
+              ...(shop.closure?.by === "admin" ? [] : [{ label: "Close shop", body: { action: "close" }, needsReason: true, danger: true }]),
+            ]}
+          />
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="flex flex-col gap-3 text-sm">
           <CardTitle>Details</CardTitle>
@@ -138,6 +163,30 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
       </div>
 
       <AuditLog entries={shop.history} />
+
+      <Card className="flex flex-col gap-3 border-danger/40">
+        <CardTitle>Danger zone</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Removing the shop deletes it with its {shop.productCount} {shop.productCount === 1 ? "product" : "products"}, reviews and saved-shop links, and cancels any
+          unfinished orders. Past orders stay in customers&apos; history. The shopkeeper&apos;s account is kept. This can&apos;t be
+          undone. To hide the shop for a while instead, close it.
+        </p>
+        <AdminActions
+          endpoint={`/api/admin/shops/${shop.id}`}
+          method="DELETE"
+          redirectTo="/admin/shops"
+          reasonHint="Kept in the admin history and shown to customers on cancelled orders."
+          actions={[
+            {
+              label: "Remove shop permanently",
+              body: {},
+              needsReason: true,
+              danger: true,
+              confirm: `Permanently remove "${shop.name}"? This can't be undone.`,
+            },
+          ]}
+        />
+      </Card>
     </div>
   );
 }

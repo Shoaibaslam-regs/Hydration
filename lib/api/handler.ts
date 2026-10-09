@@ -43,9 +43,11 @@ function assertSameOrigin(req: Request) {
 
 export function errorResponse(err: unknown): Response {
   if (err instanceof ApiError) {
+    const retryAfter = (err.details as { retryAfterSeconds?: number } | undefined)?.retryAfterSeconds;
     return json<ApiErrorBody>(
       { error: { code: err.code, message: err.message, details: err.details } },
       err.status,
+      retryAfter ? { headers: { "Retry-After": String(retryAfter) } } : undefined,
     );
   }
   if (err instanceof z.ZodError) {
@@ -82,11 +84,36 @@ export function json<T>(body: T, status = 200, init?: ResponseInit): Response {
   return Response.json(body, { ...init, status });
 }
 
-/** Parse and validate a JSON request body. Throws ZodError / ApiError. */
+/** Largest JSON body any endpoint accepts. Our biggest payload (an order) is a few KB. */
+export const MAX_BODY_BYTES = 64 * 1024;
+
+/** Read the body as text, stopping as soon as it exceeds `limit` bytes. */
+async function readBodyText(req: Request, limit: number): Promise<string> {
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > limit) throw ApiError.payloadTooLarge(limit);
+  if (!req.body) return "";
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      throw ApiError.payloadTooLarge(limit);
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
+/** Parse and validate a JSON request body (max MAX_BODY_BYTES). Throws ZodError / ApiError. */
 export async function parseBody<S extends z.ZodType>(req: Request, schema: S): Promise<z.infer<S>> {
+  const text = await readBodyText(req, MAX_BODY_BYTES);
   let raw: unknown;
   try {
-    raw = await req.json();
+    raw = JSON.parse(text);
   } catch {
     throw ApiError.badRequest("Request body must be valid JSON");
   }

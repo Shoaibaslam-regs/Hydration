@@ -95,7 +95,7 @@ export function AddressForm({ address, next }: { address: SavedAddress | null; n
           <LocationPicker
             value={location}
             onChange={setLocation}
-            hint="Shops use this to check they can deliver to you. Tap the map or drag the pin."
+            hint="Shops use this to check they can deliver to you. Search your area or use your location, then drag the pin to your door."
             error={err("location") ?? err("location.lat") ?? err("location.lng")}
           />
         </div>
@@ -106,7 +106,7 @@ export function AddressForm({ address, next }: { address: SavedAddress | null; n
       </Card>
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
         {address ? (
-          <Button variant="ghost" onClick={onDelete} disabled={deleting || pending} className="text-danger">
+          <Button variant="danger-ghost" onClick={onDelete} disabled={deleting || pending}>
             {deleting ? "Deleting…" : "Delete address"}
           </Button>
         ) : (

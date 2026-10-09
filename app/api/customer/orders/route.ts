@@ -13,6 +13,6 @@ export const GET = apiHandler(async (req) => {
 /** POST /api/customer/orders — place an order (cash on delivery). */
 export const POST = apiHandler(async (req) => {
   const user = await requireApiUser(["customer"]);
-  rateLimit(`order:${user.id}`, 20, 60 * 60 * 1000);
+  await rateLimit(`order:${user.id}`, 20, 60 * 60 * 1000);
   return json(await placeOrder(user, await parseBody(req, orderCreateSchema)), 201);
 });

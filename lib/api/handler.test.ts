@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ApiError } from "./errors";
-import { apiHandler, parseBody, parseQuery } from "./handler";
+import { apiHandler, MAX_BODY_BYTES, parseBody, parseQuery } from "./handler";
 
 describe("apiHandler", () => {
   const req = new NextRequest("http://localhost/api/test");
@@ -69,6 +69,23 @@ describe("parseBody", () => {
   it("rejects invalid JSON with BAD_REQUEST", async () => {
     const req = new Request("http://localhost", { method: "POST", body: "{nope" });
     await expect(parseBody(req, z.object({}))).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("rejects bodies over the size limit, with or without Content-Length", async () => {
+    const big = JSON.stringify({ pad: "x".repeat(MAX_BODY_BYTES) });
+    const declared = new Request("http://localhost", { method: "POST", body: big, headers: { "content-length": String(big.length) } });
+    await expect(parseBody(declared, z.any())).rejects.toMatchObject({ status: 413 });
+    const streamed = new Request("http://localhost", {
+      method: "POST",
+      body: new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode(big));
+          c.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+    await expect(parseBody(streamed, z.any())).rejects.toMatchObject({ status: 413 });
   });
 
   it("returns parsed data", async () => {

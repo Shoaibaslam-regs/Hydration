@@ -56,6 +56,7 @@ async function orderTotals(scope: Record<string, unknown>, from: Date, to: Date)
         itemsSold: { $sum: { $cond: [{ $eq: ["$status", "delivered"] }, { $sum: "$items.quantity" }, 0] } },
       },
     },
+    { $project: { _id: 0 } },
   ]);
   return t ?? { orders: 0, delivered: 0, failed: 0, deliveredValue: 0, deliveryFees: 0, itemsSold: 0 };
 }

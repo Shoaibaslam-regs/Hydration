@@ -6,64 +6,90 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Aqua: a responsive **website** (not a React Native/Expo app) where customers find nearby water shops and order water. It has a public site plus separate customer, shopkeeper and admin dashboards. MongoDB stores the data (through Mongoose), and nearby search uses geospatial queries. Auth uses JWTs (`jose`) in httpOnly cookies, and passwords are hashed with `bcryptjs`. The payment provider hasn't been chosen yet. Subscription payments (shopkeepers) and customer order payments must always stay in separate code, collections and secrets.
+Aqua is a responsive **website** (never a React Native/Expo app) where customers find nearby water shops and order water. It has a public site plus three dashboards: customer (`/account`), shopkeeper (`/shop`) and admin (`/admin`). The stack is Next.js 16 App Router, React 19, TypeScript (strict), Tailwind v4, MongoDB through Mongoose 9, and zod 4.
+
+Still open:
+- **No payment provider yet.** Orders are cash on delivery, and shop subscriptions only exist as a "not available" page. When payments are added, subscription billing and customer order payments must use separate code, collections and secrets.
+- **Unconfirmed assumptions.** `CURRENCY = "PKR"` and `TIME_ZONE = "Asia/Karachi"` (`lib/catalog.ts`), the map's default center (`lib/geo.ts`) and the plan prices (`lib/plans.ts`) are placeholders the owner hasn't confirmed.
 
 ## Commands
 
-npm is the package manager (`package-lock.json`). Don't switch to pnpm.
+npm only (`package-lock.json`); don't switch to pnpm.
 
-- `npm run dev`: dev server at http://localhost:3000
-- `npm run build`: production build
-- `npm run lint`: ESLint
-- `npm run typecheck`: `tsc --noEmit`. Generated route types live in `.next/types`; if they're stale (e.g. after deleting a route), run `npx next typegen` or a build first.
-- `npm test`: Vitest (`*.test.ts` next to the code). Run one file with `npx vitest run lib/api/handler.test.ts`, or one test with `-t "name"`.
-- `npm run db:indexes`: sync indexes for every model registered in `lib/db/models/index.ts`. Mongoose `autoIndex` is off, so new indexes (including `2dsphere`) don't exist until this runs.
-- `npm run db:seed -- --lat <lat> --lng <lng>`: dev-only demo shops/products around a point (replaces previous `demo-*` shops). Scripts run with `tsx --conditions=react-server` so modules that import `server-only` load outside Next.
+- `npm run dev`: start the dev server · `npm run build`: production build · `npm run lint` · `npm run typecheck`
+- `npm test`: Vitest. Run one file with `npx vitest run lib/orders/cart.test.ts`, one test with `-t "name"`, or `npm run test:watch`.
+- If typecheck complains about `.next/types` (stale after adding or removing a route), run `npx next typegen`.
+- `npm run db:indexes`: sync indexes for every model in `lib/db/models/index.ts`. `autoIndex` is off, so **new indexes (including 2dsphere) don't exist until you run this.**
+- `npm run db:seed -- --lat <lat> --lng <lng>`: dev-only demo shops. It replaces previous `demo-*` shops.
+- `npm run user:create-admin -- --email <e> --name "<n>"`: the only way to create an admin (it prints a generated password). Sign-up allows only `customer` and `shopkeeper`.
+- `npm run shop:set-status -- --slug <s> --status <…> [--reason "…"]`: CLI fallback. Prefer `/admin/shops`, which clears the cache and writes to the audit log.
 
-- `npm run user:create-admin -- --email <email> --name "<name>"`: the only way to create an admin (it prints a generated password once). Sign-up allows only `customer` and `shopkeeper`.
+Scripts run through `tsx --conditions=react-server`, so they can import `server-only` modules. Required env vars are in `.env.example` (`MONGODB_URI`, `JWT_SECRET`). Read them through `env()` (`lib/env.ts`). The one exception is `lib/auth/jwt.ts`, which reads `process.env` directly because `proxy.ts` imports it.
 
-- `npm run shop:set-status -- --slug <slug> --status <…> [--reason "..."]`: CLI fallback for shop verification. Prefer `/admin/shops`, which clears the cache and writes to the audit log. The CLI does neither, so the public page can take about a minute to update.
-
-Env vars: see `.env.example` (`MONGODB_URI`, `JWT_SECRET`, both required). Server code reads them through `env()` in `lib/env.ts`, which validates them with zod. The one exception is `lib/auth/jwt.ts`, which reads `process.env.JWT_SECRET` directly because `proxy.ts` imports it and can't load `server-only` modules.
+Tests: `*.test.ts` are unit tests; `*.int.test.ts` are integration tests against a real in-memory MongoDB (`mongodb-memory-server`, started once in `test/global-setup.ts`; each test file gets its own database). Integration test files call `setupTestDb()` (`test/db.ts`), which syncs indexes and clears the collections before each test, and build data with `test/fixtures.ts`. `test/setup.ts` mocks `next/cache` (its APIs only work inside Next), and Vitest replaces `server-only` with a stub. Test service changes there, especially anything involving stock, status changes or ownership.
 
 ## Architecture
 
-- `app/(public)/`: marketing and discovery pages that share the header/footer layout. Dashboards will go in their own route groups (`(customer)`, `(shop)`, `(admin)`).
-- `app/api/**/route.ts`: Route Handlers, kept thin. Each one is wrapped in `apiHandler()` and does: parse input with `parseBody`/`parseQuery` and a zod schema → check auth → call a service → `json()`. Throw `ApiError.*` (`lib/api/errors.ts`) for expected failures. Every error comes back as `{ error: { code, message, details? } }`.
-- `lib/`: server-side code. Every module that touches the database, secrets or auth starts with `import "server-only"`. Use `connectDB()` from `lib/db/connect.ts`, which keeps one cached connection. Business logic belongs in `lib/services/<domain>`, not in routes or components.
-- `lib/validation/`: zod schemas shared by handlers and forms. List endpoints use `paginationSchema` + `paginated()` so pagination happens on the server.
-- Discovery: `lib/services/shop-search.ts` builds the search aggregation as a pure, unit-tested function (`$geoNear` first when lat/lng are given, then `$sort`, then `$facet` for pagination). Shops store denormalized `productTypes`/`minPrice` so filters work inside `$geoNear`; call `refreshShopCatalogSummary()` (`lib/services/catalog.ts`) after any product change, and revalidate `shopTag(slug)` because `getShopBySlug` is cached with `use cache`. Only `status: "verified"` shops with at least one active product are public.
-- Money is stored as integer minor units; format with `formatPrice()` and convert user input with `toMinorUnits()` (`lib/catalog.ts`, which also holds `CURRENCY` and other constants safe for client code). Plans live in `lib/plans.ts`.
-- Auth (`lib/auth/`): sessions are HS256 JWTs (`jose`) in the httpOnly `aqua_session` cookie (7 days). `getSessionUser()` (`session.ts`) verifies the JWT, then loads the user from the database on every request and rejects suspended users or a mismatched `sessionVersion` (increase it to revoke all of a user's sessions). Pages call `requireRole([...], currentPath)` inside `<Suspense>`. Layouts don't re-run on navigation, so they never guard anything. Route Handlers call `requireApiUser(roles?)`. `proxy.ts` only does quick redirects for `/account`, `/shop` and `/admin` based on the cookie, with no database check. Role ↔ dashboard mapping and safe `?next=` handling live in `roles.ts`, which is safe for client code.
-- Shopkeeper area: `lib/services/my-shop.ts`, `my-products.ts` and `shop-orders.ts` always take the shop from the signed-in owner (`requireMyShop(user.id)` in APIs, `requireShopkeeperShop(path)` in pages). Never accept a shop ID from the client, and always query products and orders with `{ _id, shopId }`. One shop per shopkeeper (unique `ownerId`), and its slug never changes after creation. After any product change, call `refreshShopCatalogSummary` and `revalidateTag(shopTag(slug), { expire: 0 })` (the services already do this).
-- Customer ordering: the cart travels in the checkout URL (`/account/checkout?shop=<slug>&items=<id>:<qty>,…`, see `lib/orders/cart.ts`), so it survives the login redirect. `placeOrder` (`lib/services/customer-orders.ts`) ignores any prices sent by the client. It checks the address is inside the shop's delivery radius (`distanceKm` in `lib/geo.ts`) and reserves stock item by item with conditional `$inc` (`stock: { $gte: qty }`), giving back already-reserved items if a later one fails. No transactions are needed, so it works on standalone Mongo too. Customers can cancel only `pending` orders. Reviews require a delivered order, one per order, and recompute the shop's `rating`. Favorites are stored in `User.favoriteShopIds`. Changing the password increments `sessionVersion`, which signs out other devices.
-- Maps: `components/map/location-map.tsx` is the only file that knows the map provider (Leaflet + OpenStreetMap tiles, no API key). Leaflet is imported inside `useEffect` because it needs `window`. `LocationPicker` adds "use my location" plus a draggable pin. The public OSM tile servers are only meant for light use, so use a commercial tile provider in production.
-- Admin (`lib/services/admin/*`, `/admin/*`, `/api/admin/*`): every admin change calls `logAdminAction` (stored in the `AdminAction` collection and shown as "Admin history"). Shop status rules live in `lib/admin/shop-status.ts`, and rejecting or suspending needs a reason the shopkeeper can see. Admins can't change their own account from the panel. Suspending a user increments their `sessionVersion`. Admin order cancellation works on any order that isn't final and returns stock. Analytics live in `lib/services/analytics.ts`: `getSalesAnalytics(days, shopId?)` is shared by `/shop/reports` (scoped to one shop) and `/admin/revenue` (platform-wide, via `getRevenueAnalytics`). Days are grouped in `TIME_ZONE`, top products are grouped by the product details copied into each order line (so renamed or deleted products still show up), and "delivered order value" is money customers paid to shops, not platform revenue (subscription billing doesn't exist yet). `components/admin/admin-actions.tsx` is the shared "button + optional reason" mutation UI.
-- CSV exports (`lib/services/reports.ts`, `lib/reports/csv.ts`) return at most `EXPORT_ROW_LIMIT` rows (the `X-Export-Truncated` header is set when the limit is hit). Cells starting with `= + - @` get a leading `'` to block spreadsheet formula injection, and the file starts with a UTF-8 BOM so Excel reads it correctly. Exports are GET Route Handlers, linked with `<a download>`.
-- Charts follow the dataviz skill: one-hue series use the `--chart-1` token (validated separately for light and dark), every bar has a hover/focus tooltip, and every chart has a "Show as table" view.
-- Orders: the status machine lives in `lib/orders/status.ts` (client-safe). Status updates use the current status as a precondition (`findOneAndUpdate({ status: from })`) so concurrent changes can't both apply. Rejecting or cancelling returns stock, and delivering a cash-on-delivery order marks it paid. Order lines store a copy of each product's details, and amounts are in minor units. Order payment is separate from subscription billing.
-- Validation errors come back as `details.fieldErrors` keyed by full path (`"address.city"`). In zod 4, `.partial()` keeps `.default()`s, so PATCH schemas must be built from fields that have no defaults (see `productUpdateSchema`).
-- `getSessionUser()` calls `connection()` before checking the token, so session reads and the queries that follow always run at request time.
-- Route groups: `(public)` (site header/footer), `(customer)/account`, `(shop)/shop`, `(admin)/admin` (these three use `DashboardShell`). Client forms call the Route Handlers through `apiRequest()` (`lib/api/client.ts`), which returns field errors from zod.
-- `apiHandler` rejects POST/PUT/PATCH/DELETE requests whose `Origin` doesn't match the host (CSRF defense). `rateLimit()` (`lib/api/rate-limit.ts`) keeps counts in memory, per process.
-- `components/ui/`: shared UI building blocks (`Button`/`buttonClasses` for links, `Input`, `Field`, `Card`, `Badge`, `Container`). Use the theme color tokens (`bg-primary`, `text-muted-foreground`, `border-border`…) instead of raw Tailwind colors so dark mode keeps working.
-- Vitest replaces `server-only` with a stub (`test/server-only-stub.ts`), so server modules can be unit-tested.
+**Request flow.**
+- **Reads:** Server Components call `lib/services/*` directly, never their own API.
+- **Writes:** every mutation goes Client Component → `apiRequest()` (`lib/api/client.ts`) → Route Handler → service. The client then calls `router.refresh()`. There are no Server Actions.
+- **Route Handlers** (`app/api/**/route.ts`) stay thin. Each is wrapped in `apiHandler()` and does: auth → `parseBody`/`parseQuery` with a zod schema (`lib/validation/*`) → service → `json()`.
+- **Services** throw `ApiError.*` for expected failures. Every error reaches the client as `{ error: { code, message, details? } }`, where `details.fieldErrors` is keyed by full path (`"address.city"`) so forms can show errors under the right field.
+- `apiHandler` also calls `unstable_rethrow`, and rejects POST/PUT/PATCH/DELETE requests whose `Origin` doesn't match the host (CSRF defense).
+- `parseBody` refuses JSON bodies over `MAX_BODY_BYTES` (64 KB) with a 413.
+- `await rateLimit(key, limit, windowMs)` (`lib/api/rate-limit.ts`) is a fixed-window counter in MongoDB, shared across instances and keyed by a hash of the key. `clientIp()` trusts `X-Forwarded-For`, which clients can fake, so security-critical limits also need a key that doesn't include the IP (login has a per-account limit for this reason).
 
-## Configuration that changes how code must be written
+**Server/client boundary.** Any module that touches the database, secrets or the session starts with `import "server-only"`. Constants and pure logic safe for client code live outside `lib/services` (`lib/catalog.ts`, `lib/orders/*`, `lib/auth/roles.ts`, `lib/admin/shop-status.ts`, `lib/geo.ts`). Services return plain DTOs (string IDs, ISO dates, money as integer minor units, formatted with `formatPrice()`) and never Mongoose documents.
 
-`next.config.ts` turns on features that affect rendering and data fetching:
+**Auth and authorization** (`lib/auth/`).
+- **Sessions:** an HS256 JWT in the httpOnly `aqua_session` cookie. `getSessionUser()` re-loads the user from the database on every request and rejects anyone suspended or whose `sessionVersion` no longer matches. Increment `sessionVersion` to sign a user out everywhere (password change and suspension already do this).
+- **Pages** call `requireRole([...], path)` inside `<Suspense>`, or `requireShopkeeperShop(path)` for shop pages. **Route Handlers** call `requireApiUser(roles)`. **Layouts never guard** (they don't re-run on navigation).
+- **`proxy.ts`** only does quick redirects based on the cookie.
+- **Ownership is always derived from the session, never from a request parameter.** For example, `requireMyShop(user.id)` then a query on `{ _id, shopId }`, or `{ _id, customerId }` for customer data. Copy this pattern for any new owner-scoped data.
 
-- **`cacheComponents: true`**: data is fetched fresh on each request by default; opt into caching with `use cache` (plus `cacheLife` / `cacheTag`). Next prerenders a static shell, so reading dynamic data (cookies/session, the database) has to happen inside `<Suspense>`. A Route Handler that reads the database without reading the request should call `await connection()` first. `cookies()` can't be called inside `use cache`. Old route settings (`dynamic`, `revalidate`, `runtime = 'edge'`) don't apply here. See `02-guides/authentication-with-cache-components.md` and `02-guides/migrating-to-cache-components.md` in the bundled docs.
-- Server components that run uncached DB queries after reading `searchParams`/`params` should `await connection()` first. Otherwise a prefetch prerender runs the query and fails on the driver's `new Date()`. Client hooks that read the URL (`usePathname`, `useSearchParams`) must sit under `<Suspense>`, or the build fails on dynamic routes.
-- Any `try/catch` around Next APIs must call `unstable_rethrow(err)` first, or it will swallow Next's internal errors (prerender bailouts, `redirect`, `notFound`). `apiHandler` already does this.
-- `middleware.ts` is deprecated in Next 16 and replaced by `proxy.ts`. Use it only for quick redirects. Real authorization checks belong in the server code that reads and writes data.
-- **`partialPrefetching: true`**: `<Link>` prefetches only the static parts of a page by default.
-- **`experimental.agentFeedback: true`**: `next dev` keeps rewriting the managed block in `AGENTS.md`; leave it as-is.
-- **Tailwind v4** runs through the `@tailwindcss/turbopack` loader (no `tailwind.config`/PostCSS). Theme colors are defined in `app/globals.css` (`:root` variables + `@theme inline`, with a `prefers-color-scheme: dark` override).
-- Mongoose 9: middleware hooks are async functions. Don't use the `next()` callback. Export models as `(models.X as ReturnType<typeof createXModel> | undefined) ?? createXModel()`. Casting to `Model<XDoc>` breaks query and `insertMany` typing.
-- `error.tsx` boundaries receive `retry` (not `reset`).
+**Shops and discovery.**
+- Public listing requires `status: "verified"`, `closure: null` (open) and at least one active product.
+- **Closing is separate from verification.** `Shop.closure` (`{ by, at, reason }`, null when open) hides the shop from search and makes `placeOrder` refuse new orders, but existing orders can still be handled and the shop's page stays reachable with a "closed" notice. Shopkeepers close and reopen their own shop (`closeMyShop`/`reopenMyShop`). An admin close (`adminCloseShop`) can only be undone by an admin. The public page shows the shopkeeper's own note, never an admin's reason. Permanent deletion (`adminRemoveShop`, or the owner's `deleteMyShop` after typing the shop name) goes through `removeShopData` (`lib/services/shop-removal.ts`), which runs these steps in order: close the shop (so no new orders slip in), cancel its unfinished orders, delete its products, reviews and favorites, then delete the shop. Past orders stay.
+- Search (`lib/services/shop-search.ts`, a pure function) is `$geoNear` → `$sort` → `$facet`. Filters run inside `$geoNear` against fields copied onto the shop (`productTypes`, `minPrice`), so after any product change call `refreshShopCatalogSummary()` and `revalidateTag(shopTag(slug), { expire: 0 })`. The services already do both.
+- `getShopBySlug` is the cached (`use cache`) public shop page. Anything that changes a shop, its products, its stock or its reviews must invalidate `shopTag(slug)`.
+
+**Orders and stock** (`lib/orders/status.ts` holds the status rules for shopkeepers, customers and admins).
+- `placeOrder` recomputes every price from the database, checks the address is within the shop's delivery radius (`distanceKm`), and reserves stock one item at a time with a conditional `$inc` (`stock: { $gte: qty }`). If a later item fails, the items already reserved are put back. No transactions are used, so this works on standalone Mongo too.
+- Every status change uses the current status as a precondition (`findOneAndUpdate({ …, status: from })`) and returns 409 if another change got there first.
+- Rejecting or cancelling (by the shopkeeper, the customer or an admin) returns stock through `returnStock()` (`lib/services/stock.ts`).
+- Order lines store a copy of the product's details, so editing or deleting a product never changes past orders, and reports group by those copies.
+- The cart travels in the checkout URL (`lib/orders/cart.ts`), so it survives the login redirect.
+
+**Admin** (`lib/services/admin/*`). Every change calls `logAdminAction()`, which is shown as "Admin history". Rejecting or suspending a shop requires a reason, which the shopkeeper sees. Admins can't change their own account from the panel. Password reset has no email provider yet: an admin creates a one-time link (`lib/services/password-reset.ts`). Only a SHA-256 hash of the token is stored, the link expires after an hour, it is claimed atomically so it works once, and using it increments `sessionVersion`.
+
+**Reports.**
+- `getSalesAnalytics(days, shopId?)` (`lib/services/analytics.ts`) powers both `/shop/reports` and `/admin/revenue`. Days are grouped in `TIME_ZONE`. "Delivered order value" is money paid to shops, not platform revenue.
+- CSV exports (`lib/services/reports.ts`) are capped at `EXPORT_ROW_LIMIT` rows and escape cells through `lib/reports/csv.ts`, which neutralizes spreadsheet formulas.
+
+**UI.**
+- Route groups: `(public)` has the site header and footer; `(customer)`, `(shop)` and `(admin)` share `DashboardShell`.
+- Destructive buttons use the `danger` / `danger-outline` / `danger-ghost` `Button` variants. Don't add `className="text-danger"` to another variant: the variant's own text color wins in the CSS.
+- Shared primitives live in `components/ui`. Use the theme tokens (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-chart-1`…), never raw Tailwind colors, so dark mode works.
+- Location input is `components/map/location-picker.tsx`: a place search, "My location", and a draggable pin. Search calls `/api/geocode`, which goes through our server to Nominatim (`lib/services/geocode.ts`: identifying User-Agent, per-user rate limit, a day of `use cache`). Never call the geocoder from the browser. "My location" needs a secure context (HTTPS or localhost), so on plain-HTTP LAN dev it explains this and points to search. `next.config.ts` allows LAN IPs and HTTPS tunnel hosts in `allowedDevOrigins` for phone testing.
+- Only `components/map/location-map.tsx` knows the map provider (Leaflet + OpenStreetMap tiles, imported in `useEffect`). Use a commercial tile provider in production.
+- Charts follow the dataviz skill: one hue (`--chart-1`), a hover/focus tooltip on every mark, and a "Show as table" view.
+
+## Next.js 16 rules this code depends on
+
+- **`cacheComponents: true`.** Data is fetched fresh on every request by default, and anything that reads cookies, `params`, `searchParams` or the database must render inside `<Suspense>`. `cookies()` can't be called inside `use cache`, and old route settings (`dynamic`, `revalidate`, `runtime`) don't work.
+- **Call `await connection()` before uncached database queries** that run after reading the URL, and in Route Handlers that query the database without touching the request. Otherwise Next prerenders them and the driver's `new Date()` throws. `getSessionUser()` already does this.
+- **Client hooks that read the URL** (`usePathname`, `useSearchParams`) must sit under `<Suspense>`, or the build fails on dynamic routes.
+- **`partialPrefetching: true`** is on.
+- **`proxy.ts` replaces `middleware.ts`.**
+- **Security headers** (CSP, HSTS, frame and permissions policies) are set in `next.config.ts` `headers()`. The CSP doesn't use nonces, because nonces force every page to render dynamically and conflict with Partial Prerendering. Add any new third-party origin (map tiles, payment SDK) to the CSP there.
+- **`error.tsx` receives `retry`** (not `reset`).
+- **`revalidateTag` takes a second argument.** We use `{ expire: 0 }` so changes show immediately.
+- **`experimental.agentFeedback`** makes `next dev` rewrite the managed block in `AGENTS.md`. Leave it alone.
+- **Tailwind v4 runs through the `@tailwindcss/turbopack` loader**, with no Tailwind or PostCSS config file. Theme tokens are defined in `app/globals.css` (`:root` + `@theme inline`, with a dark override).
 
 ## Conventions
 
-- Layouts/pages use the route types Next generates (`LayoutProps<"/">`, `PageProps<...>`) instead of hand-written props types.
-- Every new Mongoose model must be added to `lib/db/models/index.ts`, and geo fields are stored as GeoJSON `Point` with a `2dsphere` index.
+- Pages and layouts use the generated route types (`PageProps<"/x/[id]">`, `LayoutProps<"/">`), and Route Handlers use `RouteContext<"/api/…">`.
+- **Mongoose models:** register every model in `lib/db/models/index.ts`, export it as `(models.X as ReturnType<typeof createXModel> | undefined) ?? createXModel()` (casting to `Model<XDoc>` breaks query typing), and write middleware hooks as async functions. Store geo fields as GeoJSON `Point` with a `2dsphere` index.
+- **zod 4:** `.partial()` keeps `.default()` values, so PATCH schemas must be built from fields without defaults (see `productUpdateSchema`), or a partial update will silently reset other fields.
+- **Search params are user-controlled.** Pages `safeParse` them and fall back to defaults instead of throwing.

@@ -106,7 +106,7 @@ export function ProductForm({ product }: { product: MyProduct | null }) {
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
         {product ? (
-          <Button variant="ghost" onClick={onDelete} disabled={deleting || pending} className="text-danger">
+          <Button variant="danger-ghost" onClick={onDelete} disabled={deleting || pending}>
             {deleting ? "Deleting…" : "Delete product"}
           </Button>
         ) : (

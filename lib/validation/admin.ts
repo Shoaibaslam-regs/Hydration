@@ -46,3 +46,12 @@ export const adminOrderCancelSchema = z.object({
 export const analyticsRangeSchema = z.object({
   days: z.preprocess(blank, z.coerce.number().int().refine((d) => [7, 30, 90].includes(d), "Use 7, 30 or 90").default(30)),
 });
+
+export const adminShopClosureSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("close"), reason: z.string().trim().min(1, "Give a reason").max(300) }),
+  z.object({ action: z.literal("reopen") }),
+]);
+
+export const adminShopRemoveSchema = z.object({
+  reason: z.string().trim().min(1, "Give a reason").max(300),
+});

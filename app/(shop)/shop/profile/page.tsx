@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
+import { DeleteShop } from "@/components/shopkeeper/delete-shop";
 import { ShopProfileForm } from "@/components/shopkeeper/shop-profile-form";
 import { ShopStatusBanner } from "@/components/shopkeeper/shop-status-banner";
 import { requireRole } from "@/lib/auth/session";
@@ -31,6 +32,7 @@ async function ProfileContent() {
       </div>
       {shop && shop.status !== "verified" && <ShopStatusBanner shop={shop} />}
       {shop?.status === "suspended" ? null : <ShopProfileForm shop={shop} />}
+      {shop && <DeleteShop shopName={shop.name} />}
     </div>
   );
 }

@@ -76,7 +76,10 @@ async function ShopsContent({ searchParams }: { searchParams: PageProps<"/admin/
                     </span>
                     <span className="text-xs text-muted-foreground">Registered {formatDateTime(s.createdAt)}</span>
                   </span>
-                  <Badge tone={SHOP_STATUS_TONES[s.status]}>{SHOP_STATUS_LABELS[s.status]}</Badge>
+                  <span className="flex gap-1.5">
+                    <Badge tone={SHOP_STATUS_TONES[s.status]}>{SHOP_STATUS_LABELS[s.status]}</Badge>
+                    {s.isClosed && <Badge tone="danger">Closed</Badge>}
+                  </span>
                 </Link>
               </li>
             ))}

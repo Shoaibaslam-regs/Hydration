@@ -26,12 +26,15 @@ export function AdminActions({
   method = "PATCH",
   reasonKey = "reason",
   reasonHint,
+  redirectTo,
 }: {
   endpoint: string;
   actions: AdminAction[];
   method?: string;
   reasonKey?: string;
   reasonHint?: string;
+  /** Navigate here after success instead of refreshing (e.g. after deleting the thing on screen). */
+  redirectTo?: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -59,6 +62,7 @@ export function AdminActions({
     }
     setAsking(null);
     setReason("");
+    if (redirectTo) router.push(redirectTo);
     router.refresh();
   }
 
@@ -84,8 +88,7 @@ export function AdminActions({
           {actions.map((a) => (
             <Button
               key={a.label}
-              variant={a.danger ? "secondary" : "primary"}
-              className={a.danger ? "text-danger" : undefined}
+              variant={a.danger ? "danger-outline" : "primary"}
               onClick={() => run(a)}
               disabled={pending}
             >

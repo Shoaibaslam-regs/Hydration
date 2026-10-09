@@ -73,3 +73,12 @@ export const orderStatusUpdateSchema = z.object({
   note: z.string().trim().max(300).optional(),
 });
 export type OrderStatusUpdate = z.infer<typeof orderStatusUpdateSchema>;
+
+export const shopClosureSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("close"), reason: z.string().trim().max(300).default("") }),
+  z.object({ action: z.literal("reopen") }),
+]);
+
+export const shopDeleteSchema = z.object({
+  confirmName: z.string().trim().min(1, "Type your shop's name to confirm").max(120),
+});

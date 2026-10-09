@@ -12,13 +12,14 @@ export function hasLocation(input: ShopSearch): input is ShopSearch & { lat: num
 }
 
 /**
- * Builds the aggregation for public shop search. Only verified shops with at
- * least one active product are listed. With coordinates it uses $geoNear
+ * Builds the aggregation for public shop search. Only verified, open shops
+ * with at least one active product are listed. With coordinates it uses $geoNear
  * (requires the 2dsphere index on `location`), which must be the first stage.
  * Results are paginated server-side via $facet.
  */
 export function buildShopSearchPipeline(input: ShopSearch): PipelineStage[] {
-  const match: Record<string, unknown> = { status: "verified", "productTypes.0": { $exists: true } };
+  // `closure: null` also matches shops saved before the field existed.
+  const match: Record<string, unknown> = { status: "verified", closure: null, "productTypes.0": { $exists: true } };
 
   if (input.q) {
     const rx = new RegExp(escapeRegex(input.q), "i");

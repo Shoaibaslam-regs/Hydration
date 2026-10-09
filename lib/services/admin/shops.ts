@@ -8,6 +8,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Order, Product, Shop, User } from "@/lib/db/models";
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
 import type { AdminShopListQuery } from "@/lib/validation/admin";
+import { removeShopData } from "../shop-removal";
 import { shopTag } from "../shops";
 import { listAdminActions, logAdminAction, type AuditEntry } from "./audit";
 
@@ -18,6 +19,7 @@ export type AdminShopSummary = {
   city: string;
   area: string;
   status: ShopStatus;
+  isClosed: boolean;
   owner: { id: string; name: string; email: string } | null;
   createdAt: string;
 };
@@ -36,6 +38,7 @@ export type AdminShopDetail = AdminShopSummary & {
   productCount: number;
   orderCount: number;
   ownerStatus: "active" | "suspended" | null;
+  closure: { by: "shopkeeper" | "admin"; at: string; reason: string } | null;
   history: AuditEntry[];
 };
 
@@ -63,6 +66,7 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
       address: { city: string; area?: string };
       status: ShopStatus;
       ownerId: Types.ObjectId;
+      closure?: { by: string } | null;
       createdAt: Date;
     }>([
       { $match: match },
@@ -79,7 +83,7 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
       { $sort: { statusOrder: 1, createdAt: -1, _id: 1 } },
       { $skip: skipFor(query) },
       { $limit: query.limit },
-      { $project: { slug: 1, name: 1, address: 1, status: 1, ownerId: 1, createdAt: 1 } },
+      { $project: { slug: 1, name: 1, address: 1, status: 1, ownerId: 1, createdAt: 1, closure: 1 } },
     ]),
     Shop.countDocuments(match),
   ]);
@@ -97,6 +101,7 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
         city: r.address.city,
         area: r.address.area ?? "",
         status: r.status,
+        isClosed: Boolean(r.closure),
         owner: o ? { id: o._id.toString(), name: o.name, email: o.email } : null,
         createdAt: r.createdAt.toISOString(),
       };
@@ -135,6 +140,10 @@ export async function getAdminShop(shopId: string): Promise<AdminShopDetail | nu
     deliveryFee: s.deliveryFee ?? 0,
     hours: { opensAt: s.hours?.opensAt ?? "", closesAt: s.hours?.closesAt ?? "" },
     statusReason: s.statusReason ?? "",
+    isClosed: Boolean(s.closure),
+    closure: s.closure
+      ? { by: s.closure.by as "shopkeeper" | "admin", at: s.closure.at.toISOString(), reason: s.closure.reason ?? "" }
+      : null,
     verifiedAt: s.verifiedAt ? s.verifiedAt.toISOString() : null,
     rating: { average: s.rating?.average ?? 0, count: s.rating?.count ?? 0 },
     productCount,
@@ -167,4 +176,41 @@ export async function setShopStatus(
 
   await logAdminAction(admin, `shop.${to}`, "shop", shop._id, reason ?? "");
   revalidateTag(shopTag(shop.slug), { expire: 0 });
+}
+
+/** Close a shop on behalf of the platform. The shopkeeper can't reopen it; only an admin can. */
+export async function adminCloseShop(admin: SessionUser, shopId: string, reason: string): Promise<void> {
+  await connectDB();
+  const shop = await Shop.findById(shopId, { slug: 1, closure: 1 }).lean();
+  if (!shop) throw ApiError.notFound("Shop not found");
+  if (shop.closure?.by === "admin") throw ApiError.conflict("This shop is already closed by an admin");
+  // Also takes over a shopkeeper's own closure, so they can't reopen it.
+  await Shop.updateOne({ _id: shop._id }, { $set: { closure: { by: "admin", at: new Date(), reason } } });
+  await logAdminAction(admin, "shop.closed", "shop", shop._id, reason);
+  revalidateTag(shopTag(shop.slug), { expire: 0 });
+}
+
+/** Reopen a closed shop (whoever closed it). */
+export async function adminReopenShop(admin: SessionUser, shopId: string): Promise<void> {
+  await connectDB();
+  const shop = await Shop.findOneAndUpdate({ _id: shopId, closure: { $ne: null } }, { $set: { closure: null } }, { projection: { slug: 1 } }).lean();
+  if (!shop) {
+    if (!(await Shop.exists({ _id: shopId }))) throw ApiError.notFound("Shop not found");
+    throw ApiError.conflict("This shop is already open");
+  }
+  await logAdminAction(admin, "shop.reopened", "shop", shop._id);
+  revalidateTag(shopTag(shop.slug), { expire: 0 });
+}
+
+/** Permanently remove a shop (see removeShopData). The owner's account stays, so they could register again. */
+export async function adminRemoveShop(admin: SessionUser, shopId: string, reason: string): Promise<{ cancelledOrders: number }> {
+  await connectDB();
+  const shop = await Shop.findById(shopId, { slug: 1, name: 1, ownerId: 1 }).lean();
+  if (!shop) throw ApiError.notFound("Shop not found");
+  const result = await removeShopData(shop, "admin", `Shop removed: ${reason}`);
+  const note = `${shop.name}: ${reason}`.slice(0, 500);
+  await logAdminAction(admin, "shop.removed", "shop", shop._id, note);
+  // Also on the owner, since the shop's own page no longer exists.
+  await logAdminAction(admin, "shop.removed", "user", shop.ownerId, note);
+  return result;
 }

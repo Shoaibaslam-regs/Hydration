@@ -12,6 +12,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.ts"],
+    globalSetup: ["./test/global-setup.ts"],
+    setupFiles: ["./test/setup.ts"],
+    // Integration tests hit a real (in-memory) MongoDB; allow for slow CI machines.
+    testTimeout: 20_000,
+    hookTimeout: 60_000,
     exclude: ["node_modules/**", ".next/**"],
   },
 });

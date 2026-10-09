@@ -23,6 +23,8 @@ export type ShopSummary = {
   hours: { opensAt: string; closesAt: string };
   imageUrl: string | null;
   distanceKm: number | null;
+  /** True while the shop is temporarily closed (search never returns closed shops). */
+  isClosed: boolean;
 };
 
 export type ProductSummary = {
@@ -44,6 +46,8 @@ export type ShopDetail = Omit<ShopSummary, "distanceKm"> & {
   location: { lat: number; lng: number };
   products: ProductSummary[];
   reviews: { id: string; authorName: string; rating: number; comment: string; createdAt: string }[];
+  /** Why the shop is closed, if it is (shown on the public page). */
+  closure: { by: "shopkeeper" | "admin"; reason: string } | null;
 };
 
 /** Cache tag for a shop's public page; revalidate it when the shop or its products change. */
@@ -61,6 +65,7 @@ type ShopRow = {
   hours: { opensAt: string; closesAt: string };
   imageUrl?: string | null;
   distanceMeters?: number;
+  closure?: { by: string; reason?: string | null } | null;
 };
 
 function toShopSummary(row: ShopRow): ShopSummary {
@@ -77,6 +82,7 @@ function toShopSummary(row: ShopRow): ShopSummary {
     hours: { opensAt: row.hours.opensAt, closesAt: row.hours.closesAt },
     imageUrl: row.imageUrl ?? null,
     distanceKm: row.distanceMeters === undefined ? null : row.distanceMeters / 1000,
+    isClosed: Boolean(row.closure),
   };
 }
 
@@ -110,6 +116,7 @@ export async function getShopBySlug(slug: string): Promise<ShopDetail | null> {
     description: shop.description ?? "",
     phone: shop.phone,
     addressLine1: shop.address.line1,
+    closure: shop.closure ? { by: shop.closure.by as "shopkeeper" | "admin", reason: shop.closure.reason ?? "" } : null,
     deliveryRadiusKm: shop.deliveryRadiusKm ?? 0,
     location: { lat, lng },
     products: products.map((p) => ({

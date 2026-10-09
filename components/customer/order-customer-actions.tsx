@@ -28,7 +28,7 @@ export function CancelOrderButton({ orderId }: { orderId: string }) {
   return (
     <div className="flex flex-col gap-2">
       <FormError message={error} />
-      <Button variant="secondary" onClick={cancel} disabled={pending} className="self-start text-danger">
+      <Button variant="danger-outline" onClick={cancel} disabled={pending} className="self-start">
         {pending ? "Cancelling…" : "Cancel order"}
       </Button>
     </div>

@@ -63,6 +63,7 @@ export async function placeOrder(user: SessionUser, input: OrderCreateInput): Pr
 
   const shop = await Shop.findOne({ slug: input.shopSlug, status: "verified" }).lean();
   if (!shop) throw ApiError.notFound("This shop isn't taking orders right now");
+  if (shop.closure) throw ApiError.conflict(`${shop.name} is closed right now and isn't taking new orders.`);
 
   const address = await Address.findOne({ _id: input.addressId, userId: customerId }).lean();
   if (!address) throw ApiError.badRequest("Choose a delivery address", { fieldErrors: { addressId: ["Choose a delivery address"] } });

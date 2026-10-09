@@ -23,6 +23,15 @@ const addressSchema = new Schema(
   { _id: false },
 );
 
+const closureSchema = new Schema(
+  {
+    by: { type: String, enum: ["shopkeeper", "admin"], required: true },
+    at: { type: Date, required: true },
+    reason: { type: String, default: "", maxlength: 300 },
+  },
+  { _id: false },
+);
+
 const shopSchema = new Schema(
   {
     // One shop per shopkeeper account.
@@ -44,6 +53,12 @@ const shopSchema = new Schema(
     /** Set by an admin when rejecting or suspending; shown to the shopkeeper. */
     statusReason: { type: String, default: "", maxlength: 500 },
     verifiedAt: { type: Date },
+    /**
+     * Set while the shop is closed: hidden from search and not taking new
+     * orders (existing orders can still be handled). Independent of the
+     * verification status. Closed by an admin → only an admin can reopen.
+     */
+    closure: { type: closureSchema, default: null },
     imageUrl: { type: String },
     rating: {
       average: { type: Number, default: 0, min: 0, max: 5 },

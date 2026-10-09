@@ -19,6 +19,7 @@ export function ShopCard({ shop }: { shop: ShopSummary }) {
           </h3>
           <p className="truncate text-sm text-muted-foreground">{place}</p>
         </div>
+        {shop.isClosed && <Badge tone="danger">Closed</Badge>}
         {shop.distanceKm !== null && (
           <span className="shrink-0 text-sm font-medium text-primary">{formatDistance(shop.distanceKm)}</span>
         )}

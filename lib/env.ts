@@ -5,6 +5,10 @@ const schema = z.object({
   MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
   /** Signs session JWTs. Generate with: openssl rand -base64 32 */
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
+  /** Geocoder for the map search box. Defaults to OpenStreetMap's public Nominatim (light use only). */
+  GEOCODER_URL: z.url().default("https://nominatim.openstreetmap.org"),
+  /** Contact email sent in the geocoder User-Agent, as Nominatim's usage policy asks. */
+  GEOCODER_CONTACT_EMAIL: z.email().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

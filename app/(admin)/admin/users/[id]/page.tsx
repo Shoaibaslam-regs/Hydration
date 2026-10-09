@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminActions, type AdminAction } from "@/components/admin/admin-actions";
 import { AuditLog } from "@/components/admin/audit-log";
+import { ResetLinkButton } from "@/components/admin/reset-link-button";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
@@ -66,6 +67,10 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
               {user.role === "shopkeeper" && " Their shop stays live unless you suspend it separately."}
             </CardDescription>
             <AdminActions endpoint={`/api/admin/users/${user.id}`} actions={actions} reasonHint="Kept in the admin history." />
+            <div className="border-t border-border pt-3">
+              <p className="mb-2 text-sm font-medium">Forgotten password</p>
+              <ResetLinkButton userId={user.id} />
+            </div>
           </>
         )}
       </Card>

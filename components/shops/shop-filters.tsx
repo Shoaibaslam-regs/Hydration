@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { CURRENCY, DEFAULT_RADIUS_KM, MAX_RADIUS_KM, PRODUCT_TYPE_LABELS, PRODUCT_TYPES } from "@/lib/catalog";
+import { cn } from "@/lib/utils";
 
 const RADII = [2, 5, 10, 25, MAX_RADIUS_KM];
 
@@ -16,6 +17,9 @@ export function ShopFilters() {
   const [pending, startTransition] = useTransition();
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  // On small screens the extra filters fold away so results start on the first screen.
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilters = ["type", "maxPrice", "minRating", "sort", "radiusKm"].filter((k) => params.get(k)).length;
 
   const hasLocation = params.has("lat") && params.has("lng");
 
@@ -95,6 +99,7 @@ export function ShopFilters() {
           <Label htmlFor="q">Search</Label>
           <Input id="q" name="q" type="search" placeholder="Shop name or area" defaultValue={params.get("q") ?? ""} maxLength={100} />
         </div>
+        <div id="more-filters" className={cn(showFilters ? "grid gap-3 sm:col-span-2 sm:grid-cols-2" : "hidden", "md:contents")}>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="type">Product</Label>
           <Select id="type" name="type" defaultValue={params.get("type") ?? ""}>
@@ -138,7 +143,17 @@ export function ShopFilters() {
             </Select>
           </div>
         )}
-        <div className="flex items-end sm:col-span-2 lg:col-span-1">
+        </div>
+        <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
+          <Button
+            variant="secondary"
+            className="md:hidden"
+            aria-expanded={showFilters}
+            aria-controls="more-filters"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            Filters{activeFilters > 0 && ` (${activeFilters})`}
+          </Button>
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Searching…" : "Search"}
           </Button>
