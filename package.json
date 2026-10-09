@@ -6,21 +6,37 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:indexes": "tsx --env-file=.env scripts/sync-indexes.ts",
+    "db:seed": "tsx --conditions=react-server --env-file=.env scripts/seed.ts",
+    "user:create-admin": "tsx --conditions=react-server --env-file=.env scripts/create-admin.ts",
+    "shop:set-status": "tsx --conditions=react-server --env-file=.env scripts/set-shop-status.ts"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.12",
+    "leaflet": "^1.9.4",
+    "mongoose": "^9.11.1",
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^24.19.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.0.3"
   }
 }

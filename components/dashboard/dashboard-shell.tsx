@@ -1,0 +1,79 @@
+import Link from "next/link";
+import { Suspense } from "react";
+import { LogoutButton } from "@/components/auth/logout-button";
+import { Container } from "@/components/ui/container";
+import { getSessionUser } from "@/lib/auth/session";
+
+export type DashboardNavItem = { href: string; label: string };
+
+/**
+ * Shared chrome for the customer, shopkeeper and admin areas. The shell is
+ * static; only the user's name streams in. Each page still enforces its role
+ * with requireRole() — layouts don't re-run on navigation, so they can't guard.
+ */
+export function DashboardShell({
+  title,
+  nav,
+  children,
+}: {
+  title: string;
+  nav: DashboardNavItem[];
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-full flex-1 flex-col bg-muted/40">
+      <header className="sticky top-0 z-40 border-b border-border bg-background">
+        <Container className="flex h-16 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link href="/" className="flex items-center gap-2 font-bold text-primary">
+              <span aria-hidden>💧</span> Aqua
+            </Link>
+            <span className="truncate border-l border-border pl-3 text-sm font-medium text-muted-foreground">{title}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Suspense fallback={<span className="h-5 w-24 animate-pulse rounded bg-muted" />}>
+              <UserName />
+            </Suspense>
+            <LogoutButton />
+          </div>
+        </Container>
+      </header>
+
+      <Container className="flex flex-1 flex-col gap-6 py-6 md:flex-row md:py-8">
+        <nav aria-label={`${title} navigation`} className="-mx-4 overflow-x-auto px-4 md:mx-0 md:w-52 md:shrink-0 md:px-0">
+          <ul className="flex gap-1 md:flex-col">
+            {nav.map((item) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className="block whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground"
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <main className="min-w-0 flex-1">{children}</main>
+      </Container>
+    </div>
+  );
+}
+
+async function UserName() {
+  const user = await getSessionUser();
+  return user ? <span className="hidden max-w-40 truncate text-sm sm:inline">{user.name}</span> : null;
+}
+
+export function PageSkeleton() {
+  return (
+    <div className="flex flex-col gap-4" aria-busy>
+      <div className="h-8 w-1/2 animate-pulse rounded-lg bg-muted" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />
+        ))}
+      </div>
+    </div>
+  );
+}
