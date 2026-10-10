@@ -6,8 +6,9 @@ const adminActionSchema = new Schema(
     adminId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     adminName: { type: String, required: true },
     action: { type: String, required: true, maxlength: 60 },
-    targetType: { type: String, enum: ["shop", "user", "order"], required: true },
-    targetId: { type: Schema.Types.ObjectId, required: true },
+    targetType: { type: String, enum: ["shop", "user", "order", "platform"], required: true },
+    /** Absent for platform-wide changes (settings). */
+    targetId: { type: Schema.Types.ObjectId },
     reason: { type: String, default: "", maxlength: 500 },
   },
   { timestamps: { createdAt: true, updatedAt: false } },

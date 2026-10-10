@@ -8,8 +8,8 @@ export type AuditEntry = { id: string; adminName: string; action: string; reason
 export async function logAdminAction(
   admin: SessionUser,
   action: string,
-  targetType: "shop" | "user" | "order",
-  targetId: string | Types.ObjectId,
+  targetType: "shop" | "user" | "order" | "platform",
+  targetId: string | Types.ObjectId | null,
   reason = "",
 ): Promise<void> {
   await AdminAction.create({
@@ -17,17 +17,17 @@ export async function logAdminAction(
     adminName: admin.name,
     action,
     targetType,
-    targetId: new Types.ObjectId(targetId),
+    ...(targetId ? { targetId: new Types.ObjectId(targetId) } : {}),
     reason,
   });
 }
 
 export async function listAdminActions(
-  targetType: "shop" | "user" | "order",
-  targetId: string,
+  targetType: "shop" | "user" | "order" | "platform",
+  targetId: string | null,
   limit = 20,
 ): Promise<AuditEntry[]> {
-  const rows = await AdminAction.find({ targetType, targetId: new Types.ObjectId(targetId) })
+  const rows = await AdminAction.find(targetId ? { targetType, targetId: new Types.ObjectId(targetId) } : { targetType })
     .sort({ createdAt: -1 })
     .limit(limit)
     .lean();

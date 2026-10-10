@@ -42,4 +42,11 @@ describe("buildShopSearchPipeline", () => {
     const facet = build({ page: "3", limit: "10" }).at(-1) as { $facet: { items: object[] } };
     expect(facet.$facet.items.slice(0, 2)).toEqual([{ $skip: 20 }, { $limit: 10 }]);
   });
+
+  it("requires an active plan only when asked", () => {
+    expect(build({})[0]).not.toHaveProperty(["$match", "subscription.endsAt"]);
+    const at = new Date("2026-10-10T00:00:00Z");
+    const [stage] = buildShopSearchPipeline(shopSearchSchema.parse({}), { requirePlanActiveAt: at });
+    expect(stage).toMatchObject({ $match: { "subscription.endsAt": { $gt: at } } });
+  });
 });

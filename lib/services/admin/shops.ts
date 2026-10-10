@@ -8,6 +8,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Order, Product, Shop, User } from "@/lib/db/models";
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
 import type { AdminShopListQuery } from "@/lib/validation/admin";
+import { toShopSubscription, type ShopSubscription } from "../billing";
 import { removeShopData } from "../shop-removal";
 import { shopTag } from "../shops";
 import { listAdminActions, logAdminAction, type AuditEntry } from "./audit";
@@ -20,6 +21,7 @@ export type AdminShopSummary = {
   area: string;
   status: ShopStatus;
   isClosed: boolean;
+  hasVerifiedBadge: boolean;
   owner: { id: string; name: string; email: string } | null;
   createdAt: string;
 };
@@ -39,6 +41,8 @@ export type AdminShopDetail = AdminShopSummary & {
   orderCount: number;
   ownerStatus: "active" | "suspended" | null;
   closure: { by: "shopkeeper" | "admin"; at: string; reason: string } | null;
+  plan: ShopSubscription;
+  badgeGrantedAt: string | null;
   history: AuditEntry[];
 };
 
@@ -67,6 +71,7 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
       status: ShopStatus;
       ownerId: Types.ObjectId;
       closure?: { by: string } | null;
+      verifiedBadge?: { grantedAt: Date } | null;
       createdAt: Date;
     }>([
       { $match: match },
@@ -83,7 +88,7 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
       { $sort: { statusOrder: 1, createdAt: -1, _id: 1 } },
       { $skip: skipFor(query) },
       { $limit: query.limit },
-      { $project: { slug: 1, name: 1, address: 1, status: 1, ownerId: 1, createdAt: 1, closure: 1 } },
+      { $project: { slug: 1, name: 1, address: 1, status: 1, ownerId: 1, createdAt: 1, closure: 1, verifiedBadge: 1 } },
     ]),
     Shop.countDocuments(match),
   ]);
@@ -102,6 +107,7 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
         area: r.address.area ?? "",
         status: r.status,
         isClosed: Boolean(r.closure),
+        hasVerifiedBadge: Boolean(r.verifiedBadge),
         owner: o ? { id: o._id.toString(), name: o.name, email: o.email } : null,
         createdAt: r.createdAt.toISOString(),
       };
@@ -141,6 +147,9 @@ export async function getAdminShop(shopId: string): Promise<AdminShopDetail | nu
     hours: { opensAt: s.hours?.opensAt ?? "", closesAt: s.hours?.closesAt ?? "" },
     statusReason: s.statusReason ?? "",
     isClosed: Boolean(s.closure),
+    hasVerifiedBadge: Boolean(s.verifiedBadge),
+    badgeGrantedAt: s.verifiedBadge ? s.verifiedBadge.grantedAt.toISOString() : null,
+    plan: toShopSubscription(s.subscription, new Date()),
     closure: s.closure
       ? { by: s.closure.by as "shopkeeper" | "admin", at: s.closure.at.toISOString(), reason: s.closure.reason ?? "" }
       : null,
@@ -213,4 +222,36 @@ export async function adminRemoveShop(admin: SessionUser, shopId: string, reason
   // Also on the owner, since the shop's own page no longer exists.
   await logAdminAction(admin, "shop.removed", "user", shop.ownerId, note);
   return result;
+}
+
+/** Give a shop the public "Verified" trust badge. */
+export async function grantVerifiedBadge(admin: SessionUser, shopId: string, note = ""): Promise<void> {
+  await connectDB();
+  const shop = await Shop.findOneAndUpdate(
+    { _id: shopId, verifiedBadge: null },
+    { $set: { verifiedBadge: { grantedAt: new Date(), grantedBy: new Types.ObjectId(admin.id) } } },
+    { projection: { slug: 1 } },
+  ).lean();
+  if (!shop) {
+    if (!(await Shop.exists({ _id: shopId }))) throw ApiError.notFound("Shop not found");
+    throw ApiError.conflict("This shop already has the verified badge");
+  }
+  await logAdminAction(admin, "shop.badge.granted", "shop", shop._id, note);
+  revalidateTag(shopTag(shop.slug), { expire: 0 });
+}
+
+/** Remove the badge. A reason is required and kept in the admin history. */
+export async function revokeVerifiedBadge(admin: SessionUser, shopId: string, reason: string): Promise<void> {
+  await connectDB();
+  const shop = await Shop.findOneAndUpdate(
+    { _id: shopId, verifiedBadge: { $ne: null } },
+    { $set: { verifiedBadge: null } },
+    { projection: { slug: 1 } },
+  ).lean();
+  if (!shop) {
+    if (!(await Shop.exists({ _id: shopId }))) throw ApiError.notFound("Shop not found");
+    throw ApiError.conflict("This shop doesn't have the verified badge");
+  }
+  await logAdminAction(admin, "shop.badge.revoked", "shop", shop._id, reason);
+  revalidateTag(shopTag(shop.slug), { expire: 0 });
 }

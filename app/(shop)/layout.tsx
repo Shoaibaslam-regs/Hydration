@@ -9,6 +9,7 @@ export default function ShopkeeperLayout({ children }: LayoutProps<"/">) {
         { href: "/shop/orders", label: "Orders" },
         { href: "/shop/products", label: "Products" },
         { href: "/shop/reports", label: "Sales & reports" },
+        { href: "/shop/billing", label: "Billing" },
         { href: "/shop/profile", label: "Shop profile" },
       ]}
     >

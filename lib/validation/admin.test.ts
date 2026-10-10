@@ -6,7 +6,9 @@ describe("adminUserUpdateSchema", () => {
   it("requires a reason to suspend", () => {
     expect(adminUserUpdateSchema.safeParse({ action: "suspend" }).success).toBe(false);
     expect(adminUserUpdateSchema.safeParse({ action: "suspend", reason: " " }).success).toBe(false);
-    expect(adminUserUpdateSchema.parse({ action: "suspend", reason: "Fraud" })).toEqual({ action: "suspend", reason: "Fraud" });
+    expect(adminUserUpdateSchema.parse({ action: "suspend", reason: "Fraud" })).toEqual({ action: "suspend", reason: "Fraud", days: null });
+    expect(adminUserUpdateSchema.parse({ action: "suspend", reason: "Fraud", days: 7 })).toMatchObject({ days: 7 });
+    expect(adminUserUpdateSchema.safeParse({ action: "suspend", reason: "Fraud", days: 5 }).success).toBe(false);
   });
 
   it("accepts activate / sign out and rejects unknown actions", () => {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
+import { VerifiedBadge } from "@/components/shops/verified-badge";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -70,7 +71,10 @@ async function ShopsContent({ searchParams }: { searchParams: PageProps<"/admin/
               <li key={s.id}>
                 <Link href={`/admin/shops/${s.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-muted/50">
                   <span className="flex min-w-0 flex-col">
-                    <span className="font-medium">{s.name}</span>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      {s.name}
+                      {s.hasVerifiedBadge && <VerifiedBadge compact />}
+                    </span>
                     <span className="truncate text-sm text-muted-foreground">
                       {[s.area, s.city].filter(Boolean).join(", ")} · {s.owner ? `${s.owner.name} (${s.owner.email})` : "No owner"}
                     </span>

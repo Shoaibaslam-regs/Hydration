@@ -27,6 +27,7 @@ export type MyShop = {
   status: ShopStatus;
   statusReason: string;
   closure: { by: "shopkeeper" | "admin"; at: string; reason: string } | null;
+  hasVerifiedBadge: boolean;
 };
 
 type ShopLean = {
@@ -43,6 +44,7 @@ type ShopLean = {
   status: string;
   statusReason?: string | null;
   closure?: { by: string; at: Date; reason?: string | null } | null;
+  verifiedBadge?: { grantedAt: Date } | null;
 };
 
 function toMyShop(shop: ShopLean): MyShop {
@@ -63,6 +65,7 @@ function toMyShop(shop: ShopLean): MyShop {
     closure: shop.closure
       ? { by: shop.closure.by as "shopkeeper" | "admin", at: shop.closure.at.toISOString(), reason: shop.closure.reason ?? "" }
       : null,
+    hasVerifiedBadge: Boolean(shop.verifiedBadge),
   };
 }
 

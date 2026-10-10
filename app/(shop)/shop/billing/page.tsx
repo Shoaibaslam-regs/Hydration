@@ -1,0 +1,128 @@
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { PaymentForm } from "@/components/billing/payment-form";
+import { PaymentStatusBadge } from "@/components/billing/payment-status-badge";
+import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
+import { PAYMENT_METHOD_LABELS } from "@/lib/billing/constants";
+import { formatDateTime, formatPrice } from "@/lib/catalog";
+import { PLANS } from "@/lib/plans";
+import { getMyBilling } from "@/lib/services/billing";
+import { getPlatformSettings } from "@/lib/services/platform-settings";
+
+export const metadata: Metadata = { title: "Billing" };
+
+export default function BillingPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-bold">Billing</h1>
+      <Suspense fallback={<PageSkeleton />}>
+        <BillingContent />
+      </Suspense>
+    </div>
+  );
+}
+
+async function BillingContent() {
+  const { shop } = await requireShopkeeperShop("/shop/billing");
+  const [{ subscription, payments }, settings] = await Promise.all([getMyBilling(shop), getPlatformSettings()]);
+  const waiting = payments.find((p) => p.status === "pending");
+  const lastRejected = payments[0]?.status === "rejected" ? payments[0] : null;
+
+  return (
+    <>
+      <Card className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>Your plan</CardTitle>
+          {subscription ? (
+            <Badge tone={subscription.active ? "success" : "danger"}>{subscription.active ? "Active" : "Expired"}</Badge>
+          ) : (
+            <Badge>No plan</Badge>
+          )}
+        </div>
+        {subscription ? (
+          <p className="text-sm">
+            <span className="font-medium">{subscription.planName}</span> ·{" "}
+            {subscription.active ? "paid until " : "ended "}
+            {formatDateTime(subscription.endsAt)}
+          </p>
+        ) : (
+          <CardDescription>You haven&apos;t paid for a plan yet.</CardDescription>
+        )}
+        <CardDescription>
+          {settings.requireSubscription
+            ? "An active plan is required for your shop to appear in search and take orders."
+            : "Plans aren't required yet: your shop is listed either way. Paying now keeps you covered when they are."}
+        </CardDescription>
+      </Card>
+
+      {waiting ? (
+        <Card className="flex flex-col gap-1 border-warning">
+          <CardTitle>Payment waiting for review</CardTitle>
+          <CardDescription>
+            {waiting.planName} × {waiting.months} {waiting.months === 1 ? "month" : "months"} · {formatPrice(waiting.amount)} ·{" "}
+            {PAYMENT_METHOD_LABELS[waiting.method]} ref. {waiting.reference}. Sent {formatDateTime(waiting.createdAt)}. We&apos;ll
+            activate your plan once we&apos;ve confirmed it.
+          </CardDescription>
+        </Card>
+      ) : (
+        <Card className="flex flex-col gap-4">
+          <div>
+            <CardTitle>{subscription?.active ? "Renew or change plan" : "Pay for a plan"}</CardTitle>
+            <CardDescription>Pay using the details below, then send us the transaction ID so we can confirm it.</CardDescription>
+          </div>
+          {lastRejected && (
+            <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm">
+              Your last payment (ref. {lastRejected.reference}) wasn&apos;t approved: {lastRejected.reviewReason}
+            </p>
+          )}
+          <div className="rounded-lg border border-border p-3 text-sm">
+            <p className="mb-1 font-medium">How to pay</p>
+            {settings.paymentInstructions ? (
+              <p className="whitespace-pre-line text-muted-foreground">{settings.paymentInstructions}</p>
+            ) : (
+              <p className="text-muted-foreground">Payment details haven&apos;t been published yet. Please contact the Aqua team.</p>
+            )}
+          </div>
+          <PaymentForm defaultPlanId={subscription?.planId} />
+          <ul className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+            {PLANS.map((p) => (
+              <li key={p.id}>
+                <span className="font-medium text-foreground">{p.name}:</span> {p.features.join(", ")}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <Card className="flex flex-col gap-3">
+        <CardTitle>Payment history</CardTitle>
+        {payments.length === 0 ? (
+          <CardDescription>No payments yet.</CardDescription>
+        ) : (
+          <ul className="divide-y divide-border text-sm">
+            {payments.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <span className="flex flex-col">
+                  <span className="font-medium">
+                    {p.planName} × {p.months} {p.months === 1 ? "month" : "months"} · {formatPrice(p.amount)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {PAYMENT_METHOD_LABELS[p.method]} ref. {p.reference} · sent {formatDateTime(p.createdAt)}
+                    {p.periodEnd && ` · covers until ${formatDateTime(p.periodEnd)}`}
+                  </span>
+                  {p.status === "rejected" && p.reviewReason && (
+                    <span className="text-xs text-danger">Reason: {p.reviewReason}</span>
+                  )}
+                </span>
+                <PaymentStatusBadge status={p.status} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </>
+  );
+}

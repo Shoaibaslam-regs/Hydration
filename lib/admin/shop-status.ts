@@ -4,7 +4,7 @@ export type ShopStatus = "pending" | "verified" | "rejected" | "suspended";
 
 export const SHOP_STATUS_LABELS: Record<ShopStatus, string> = {
   pending: "Awaiting review",
-  verified: "Verified",
+  verified: "Approved",
   rejected: "Rejected",
   suspended: "Suspended",
 };
@@ -28,7 +28,7 @@ export const ADMIN_SHOP_TRANSITIONS: Record<ShopStatus, readonly ShopStatus[]> =
 export const SHOP_REASON_REQUIRED: readonly ShopStatus[] = ["rejected", "suspended"];
 
 export const ADMIN_SHOP_ACTION_LABELS: Record<ShopStatus, string> = {
-  verified: "Verify",
+  verified: "Approve",
   rejected: "Reject",
   suspended: "Suspend",
   pending: "Move to review",

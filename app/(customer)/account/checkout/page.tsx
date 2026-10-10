@@ -10,6 +10,7 @@ import { requireRole } from "@/lib/auth/session";
 import { formatPrice } from "@/lib/catalog";
 import { decodeCart } from "@/lib/orders/cart";
 import { listAddresses } from "@/lib/services/addresses";
+import { getPlatformSettings } from "@/lib/services/platform-settings";
 import { getShopBySlug } from "@/lib/services/shops";
 import { getProfile } from "@/lib/services/users";
 import { shopSlugSchema } from "@/lib/validation/shops";
@@ -46,10 +47,11 @@ async function Checkout({ searchParams }: { searchParams: PageProps<"/account/ch
     );
   }
 
-  if (shop.closure) {
+  const planInactive = (await getPlatformSettings()).requireSubscription && !(shop.planEndsAt && new Date(shop.planEndsAt) > new Date());
+  if (shop.closure || planInactive) {
     return (
       <EmptyState
-        title={`${shop.name} is closed right now`}
+        title={shop.closure ? `${shop.name} is closed right now` : `${shop.name} isn't taking orders right now`}
         description="It isn't taking new orders at the moment. Find another shop nearby."
         action={<Link href="/shops" className={buttonClasses()}>Find shops</Link>}
       />

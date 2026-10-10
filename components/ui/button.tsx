@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "danger-ghost";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "danger-ghost" | "on-dark";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
@@ -11,6 +11,8 @@ const variants: Record<Variant, string> = {
   // Destructive actions that shouldn't shout: red text, quiet surface.
   "danger-outline": "border border-danger/40 bg-card text-danger hover:bg-danger/10",
   "danger-ghost": "text-danger hover:bg-danger/10",
+  // Over dark photos (e.g. the home hero), whatever the color theme.
+  "on-dark": "border border-white/40 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20",
 };
 
 const sizes: Record<Size, string> = {

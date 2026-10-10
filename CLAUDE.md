@@ -9,14 +9,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Aqua is a responsive **website** (never a React Native/Expo app) where customers find nearby water shops and order water. It has a public site plus three dashboards: customer (`/account`), shopkeeper (`/shop`) and admin (`/admin`). The stack is Next.js 16 App Router, React 19, TypeScript (strict), Tailwind v4, MongoDB through Mongoose 9, and zod 4.
 
 Still open:
-- **No payment provider yet.** Orders are cash on delivery, and shop subscriptions only exist as a "not available" page. When payments are added, subscription billing and customer order payments must use separate code, collections and secrets.
-- **Unconfirmed assumptions.** `CURRENCY = "PKR"` and `TIME_ZONE = "Asia/Karachi"` (`lib/catalog.ts`), the map's default center (`lib/geo.ts`) and the plan prices (`lib/plans.ts`) are placeholders the owner hasn't confirmed.
+- **No payment gateway yet.** Customer orders are cash on delivery. Shop plans are billed manually (see "Billing" below). If a gateway is added, plug it in behind the same `SubscriptionPayment` records, and keep subscription billing and customer order payments in separate code, collections and secrets.
+- **Unconfirmed assumptions.** `CURRENCY = "PKR"` and `TIME_ZONE = "Asia/Karachi"` (`lib/catalog.ts`), and the map's default center (`lib/geo.ts`) are placeholders the owner hasn't confirmed. Plan prices (`lib/plans.ts`) were confirmed by the owner.
 
 ## Commands
 
 npm only (`package-lock.json`); don't switch to pnpm.
 
 - `npm run dev`: start the dev server · `npm run build`: production build · `npm run lint` · `npm run typecheck`
+- Phones on the same network can open `http://<LAN-IP>:3000` (the address is in `allowedDevOrigins`), but browsers block "My location" on plain HTTP. To test GPS, use an HTTPS tunnel (`npx cloudflared tunnel --url http://localhost:3000`) or `npm run dev:https` (self-signed; certificates go in the git-ignored `/certificates`).
 - `npm test`: Vitest. Run one file with `npx vitest run lib/orders/cart.test.ts`, one test with `-t "name"`, or `npm run test:watch`.
 - If typecheck complains about `.next/types` (stale after adding or removing a route), run `npx next typegen`.
 - `npm run db:indexes`: sync indexes for every model in `lib/db/models/index.ts`. `autoIndex` is off, so **new indexes (including 2dsphere) don't exist until you run this.**
@@ -26,7 +27,7 @@ npm only (`package-lock.json`); don't switch to pnpm.
 
 Scripts run through `tsx --conditions=react-server`, so they can import `server-only` modules. Required env vars are in `.env.example` (`MONGODB_URI`, `JWT_SECRET`). Read them through `env()` (`lib/env.ts`). The one exception is `lib/auth/jwt.ts`, which reads `process.env` directly because `proxy.ts` imports it.
 
-Tests: `*.test.ts` are unit tests; `*.int.test.ts` are integration tests against a real in-memory MongoDB (`mongodb-memory-server`, started once in `test/global-setup.ts`; each test file gets its own database). Integration test files call `setupTestDb()` (`test/db.ts`), which syncs indexes and clears the collections before each test, and build data with `test/fixtures.ts`. `test/setup.ts` mocks `next/cache` (its APIs only work inside Next), and Vitest replaces `server-only` with a stub. Test service changes there, especially anything involving stock, status changes or ownership.
+Tests: `*.test.ts` are unit tests; `*.int.test.ts` are integration tests against a real in-memory MongoDB (`mongodb-memory-server`, started once in `test/global-setup.ts`; each test file gets its own database). The first run on a new machine downloads a MongoDB binary (~100 MB) into `~/.cache/mongodb-binaries`. Integration test files call `setupTestDb()` (`test/db.ts`), which syncs indexes and clears the collections before each test, and build data with `test/fixtures.ts`. `test/setup.ts` mocks `next/cache` (its APIs only work inside Next), and Vitest replaces `server-only` with a stub. Test service changes there, especially anything involving stock, status changes or ownership.
 
 ## Architecture
 
@@ -49,7 +50,8 @@ Tests: `*.test.ts` are unit tests; `*.int.test.ts` are integration tests against
 
 **Shops and discovery.**
 - Public listing requires `status: "verified"`, `closure: null` (open) and at least one active product.
-- **Closing is separate from verification.** `Shop.closure` (`{ by, at, reason }`, null when open) hides the shop from search and makes `placeOrder` refuse new orders, but existing orders can still be handled and the shop's page stays reachable with a "closed" notice. Shopkeepers close and reopen their own shop (`closeMyShop`/`reopenMyShop`). An admin close (`adminCloseShop`) can only be undone by an admin. The public page shows the shopkeeper's own note, never an admin's reason. Permanent deletion (`adminRemoveShop`, or the owner's `deleteMyShop` after typing the shop name) goes through `removeShopData` (`lib/services/shop-removal.ts`), which runs these steps in order: close the shop (so no new orders slip in), cancel its unfinished orders, delete its products, reviews and favorites, then delete the shop. Past orders stay.
+- **Two different "verified" ideas.** `status: "verified"` means the shop is *approved* to be listed; the UI calls it "Approved"/"Approve". `Shop.verifiedBadge` (`{ grantedAt, grantedBy }`, null when absent) is a separate public ✓ **Verified** trust badge that admins give or remove (`grantVerifiedBadge` / `revokeVerifiedBadge`; removing it needs a reason). It shows through `hasVerifiedBadge` on every shop DTO and `components/shops/verified-badge.tsx`. Keep user-facing text consistent: "verified" only for the badge.
+- **Closing is separate from approval.** `Shop.closure` (`{ by, at, reason }`, null when open) hides the shop from search and makes `placeOrder` refuse new orders, but existing orders can still be handled and the shop's page stays reachable with a "closed" notice. Shopkeepers close and reopen their own shop (`closeMyShop`/`reopenMyShop`). An admin close (`adminCloseShop`) can only be undone by an admin. The public page shows the shopkeeper's own note, never an admin's reason. Permanent deletion (`adminRemoveShop`, or the owner's `deleteMyShop` after typing the shop name) goes through `removeShopData` (`lib/services/shop-removal.ts`), which runs these steps in order: close the shop (so no new orders slip in), cancel its unfinished orders, delete its products, reviews and favorites, then delete the shop. Past orders stay.
 - Search (`lib/services/shop-search.ts`, a pure function) is `$geoNear` → `$sort` → `$facet`. Filters run inside `$geoNear` against fields copied onto the shop (`productTypes`, `minPrice`), so after any product change call `refreshShopCatalogSummary()` and `revalidateTag(shopTag(slug), { expire: 0 })`. The services already do both.
 - `getShopBySlug` is the cached (`use cache`) public shop page. Anything that changes a shop, its products, its stock or its reviews must invalidate `shopTag(slug)`.
 
@@ -60,15 +62,24 @@ Tests: `*.test.ts` are unit tests; `*.int.test.ts` are integration tests against
 - Order lines store a copy of the product's details, so editing or deleting a product never changes past orders, and reports group by those copies.
 - The cart travels in the checkout URL (`lib/orders/cart.ts`), so it survives the login redirect.
 
-**Admin** (`lib/services/admin/*`). Every change calls `logAdminAction()`, which is shown as "Admin history". Rejecting or suspending a shop requires a reason, which the shopkeeper sees. Admins can't change their own account from the panel. Password reset has no email provider yet: an admin creates a one-time link (`lib/services/password-reset.ts`). Only a SHA-256 hash of the token is stored, the link expires after an hour, it is claimed atomically so it works once, and using it increments `sessionVersion`.
+**Admin** (`lib/services/admin/*`). Every change calls `logAdminAction()`, which is shown as "Admin history".
+- **Suspension** can be timed (`days`: 1/3/7/14/30/90) or open-ended (`days: null`). Always check with `isSuspended(user, now)` / `suspendedFilter(now)` from `lib/auth/suspension.ts`, never `status === "suspended"` alone: an expired timed suspension counts as active with no background job, and the record is tidied on the user's next login.
+- **Deleting an account** (`deleteUserAccount`, `lib/services/admin/user-removal.ts`) requires typing the user's email. It removes a shopkeeper's shop via `removeShopData`, cancels the customer's unfinished orders (returning stock), and keeps past orders with the name, phone and street address replaced by placeholders. It deletes reviews (shop ratings are recalculated), addresses, reset links and the user. The audit entry stores the name and email because the account is gone. Plan payment records are kept.
+- Rejecting or suspending a shop requires a reason, which the shopkeeper sees. Admins can't change their own account from the panel. Password reset has no email provider yet: an admin creates a one-time link (`lib/services/password-reset.ts`). Only a SHA-256 hash of the token is stored, the link expires after an hour, it is claimed atomically so it works once, and using it increments `sessionVersion`.
+
+**Billing (shop plans, manual).**
+- Shopkeepers pay outside the site and submit a reference at `/shop/billing`. That creates a `SubscriptionPayment` whose amount is always `plan.monthlyPrice × months`, computed on the server. A partial unique index allows only one `pending` payment per shop.
+- Admins review payments at `/admin/subscriptions`. `approveSubscriptionPayment` claims the payment atomically and sets `Shop.subscription = { planId, endsAt }`. Renewals stack: a new period starts when the current one ends, using `nextPeriodStart` and `addMonths` from `lib/billing/constants.ts`.
+- Enforcement only runs while `PlatformSettings.requireSubscription` is on (an admin switch, off by default; read with `getPlatformSettings()`, which is cached under the `platform-settings` tag). When it's on, `buildShopSearchPipeline(input, { requirePlanActiveAt })` hides shops without an active plan, and `placeOrder`, checkout and the public shop page refuse them. Admin settings changes are audited with `targetType: "platform"`.
 
 **Reports.**
-- `getSalesAnalytics(days, shopId?)` (`lib/services/analytics.ts`) powers both `/shop/reports` and `/admin/revenue`. Days are grouped in `TIME_ZONE`. "Delivered order value" is money paid to shops, not platform revenue.
+- `getSalesAnalytics(days, shopId?)` (`lib/services/analytics.ts`) powers both `/shop/reports` and `/admin/revenue`. Days are grouped in `TIME_ZONE`. "Delivered order value" is money paid to shops. Platform revenue is approved plan payments (`getRevenueAnalytics().totals.subscriptionRevenue`).
 - CSV exports (`lib/services/reports.ts`) are capped at `EXPORT_ROW_LIMIT` rows and escape cells through `lib/reports/csv.ts`, which neutralizes spreadsheet formulas.
 
 **UI.**
 - Route groups: `(public)` has the site header and footer; `(customer)`, `(shop)` and `(admin)` share `DashboardShell`.
-- Destructive buttons use the `danger` / `danger-outline` / `danger-ghost` `Button` variants. Don't add `className="text-danger"` to another variant: the variant's own text color wins in the CSS.
+- Button colors come from variants (`danger` / `danger-outline` / `danger-ghost` for destructive actions, `on-dark` over dark photos). Don't recolor a variant with `className="text-…"`: the variant's own text color wins in the CSS, so add a variant instead.
+- Site images live in `public/images` and are imported statically into `next/image` (which gives width, height and a blur placeholder automatically). Above-the-fold images use `preload`; `priority` is deprecated in Next 16. The home hero photo is dark in both themes, so its text uses fixed white rather than theme tokens.
 - Shared primitives live in `components/ui`. Use the theme tokens (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-chart-1`…), never raw Tailwind colors, so dark mode works.
 - Location input is `components/map/location-picker.tsx`: a place search, "My location", and a draggable pin. Search calls `/api/geocode`, which goes through our server to Nominatim (`lib/services/geocode.ts`: identifying User-Agent, per-user rate limit, a day of `use cache`). Never call the geocoder from the browser. "My location" needs a secure context (HTTPS or localhost), so on plain-HTTP LAN dev it explains this and points to search. `next.config.ts` allows LAN IPs and HTTPS tunnel hosts in `allowedDevOrigins` for phone testing.
 - Only `components/map/location-map.tsx` knows the map provider (Leaflet + OpenStreetMap tiles, imported in `useEffect`). Use a commercial tile provider in production.

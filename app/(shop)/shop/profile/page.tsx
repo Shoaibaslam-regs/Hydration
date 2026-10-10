@@ -26,7 +26,7 @@ async function ProfileContent() {
         <h1 className="text-2xl font-bold">{shop ? "Shop profile" : "Register your shop"}</h1>
         {!shop && (
           <p className="text-muted-foreground">
-            After you submit, our team verifies your shop before it appears to customers.
+            After you submit, our team reviews and approves your shop before it appears to customers.
           </p>
         )}
       </div>

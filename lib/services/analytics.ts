@@ -2,7 +2,7 @@ import "server-only";
 import { Types } from "mongoose";
 import { TIME_ZONE, type ProductType } from "@/lib/catalog";
 import { connectDB } from "@/lib/db/connect";
-import { Order, Shop, User } from "@/lib/db/models";
+import { Order, Shop, SubscriptionPayment, User } from "@/lib/db/models";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/orders/status";
 
 export type DailyPoint = { date: string; deliveredValue: number; orders: number; delivered: number };
@@ -29,7 +29,14 @@ export type SalesAnalytics = {
 };
 
 export type RevenueAnalytics = SalesAnalytics & {
-  totals: SalesAnalytics["totals"] & { newCustomers: number; newShops: number };
+  totals: SalesAnalytics["totals"] & {
+    newCustomers: number;
+    newShops: number;
+    /** Minor units: shop plan payments approved in the window (Aqua's own revenue). */
+    subscriptionRevenue: number;
+    approvedPayments: number;
+  };
+  previousSubscriptionRevenue: number;
   topShops: { id: string; name: string; deliveredValue: number; delivered: number }[];
 };
 
@@ -126,8 +133,13 @@ export async function getSalesAnalytics(days: number, shopId?: string): Promise<
 /** Platform-wide analytics for admins: sales plus growth and top shops. */
 export async function getRevenueAnalytics(days: number): Promise<RevenueAnalytics> {
   const sales = await getSalesAnalytics(days);
-  const { from, to } = reportWindow(days, new Date(sales.to));
-  const [topRows, newCustomers, newShops] = await Promise.all([
+  const { from, to, prevFrom } = reportWindow(days, new Date(sales.to));
+  const planRevenue = (start: Date, end: Date) =>
+    SubscriptionPayment.aggregate<{ amount: number; n: number }>([
+      { $match: { status: "approved", reviewedAt: { $gte: start, $lt: end } } },
+      { $group: { _id: null, amount: { $sum: "$amount" }, n: { $sum: 1 } } },
+    ]).then(([r]) => r ?? { amount: 0, n: 0 });
+  const [topRows, newCustomers, newShops, plans, previousPlans] = await Promise.all([
     Order.aggregate<{ _id: Types.ObjectId; deliveredValue: number; delivered: number }>([
       { $match: { createdAt: { $gte: from, $lt: to }, status: "delivered" } },
       { $group: { _id: "$shopId", deliveredValue: { $sum: "$total" }, delivered: { $sum: 1 } } },
@@ -136,12 +148,15 @@ export async function getRevenueAnalytics(days: number): Promise<RevenueAnalytic
     ]),
     User.countDocuments({ role: "customer", createdAt: { $gte: from, $lt: to } }),
     Shop.countDocuments({ createdAt: { $gte: from, $lt: to } }),
+    planRevenue(from, to),
+    planRevenue(prevFrom, from),
   ]);
   const shops = await Shop.find({ _id: { $in: topRows.map((r) => r._id) } }, { name: 1 }).lean();
   const names = new Map(shops.map((s) => [s._id.toString(), s.name]));
   return {
     ...sales,
-    totals: { ...sales.totals, newCustomers, newShops },
+    totals: { ...sales.totals, newCustomers, newShops, subscriptionRevenue: plans.amount, approvedPayments: plans.n },
+    previousSubscriptionRevenue: previousPlans.amount,
     topShops: topRows.map((r) => ({
       id: r._id.toString(),
       name: names.get(r._id.toString()) ?? "Deleted shop",

@@ -2,6 +2,7 @@ import "server-only";
 import { Types } from "mongoose";
 import { ApiError } from "@/lib/api/errors";
 import type { UserRole } from "@/lib/auth/roles";
+import { isSuspended, suspendedFilter } from "@/lib/auth/suspension";
 import type { SessionUser } from "@/lib/auth/session";
 import { connectDB } from "@/lib/db/connect";
 import { Order, Shop, User } from "@/lib/db/models";
@@ -16,7 +17,10 @@ export type AdminUserSummary = {
   email: string;
   phone: string;
   role: UserRole;
+  /** Effective status: an expired timed suspension counts as active. */
   status: "active" | "suspended";
+  /** End of a timed suspension; null when indefinite or not suspended. */
+  suspendedUntil: string | null;
   createdAt: string;
   lastLoginAt: string | null;
 };
@@ -34,6 +38,7 @@ type UserLean = {
   phone?: string | null;
   role: string;
   status: string;
+  suspendedUntil?: Date | null;
   createdAt: Date;
   lastLoginAt?: Date | null;
 };
@@ -45,7 +50,8 @@ function toSummary(u: UserLean): AdminUserSummary {
     email: u.email,
     phone: u.phone ?? "",
     role: u.role as UserRole,
-    status: u.status as "active" | "suspended",
+    status: isSuspended(u, new Date()) ? "suspended" : "active",
+    suspendedUntil: isSuspended(u, new Date()) && u.suspendedUntil ? u.suspendedUntil.toISOString() : null,
     createdAt: u.createdAt.toISOString(),
     lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
   };
@@ -55,13 +61,15 @@ function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const PROJECTION = { name: 1, email: 1, phone: 1, role: 1, status: 1, createdAt: 1, lastLoginAt: 1 };
+const PROJECTION = { name: 1, email: 1, phone: 1, role: 1, status: 1, suspendedUntil: 1, createdAt: 1, lastLoginAt: 1 };
 
 export async function listAdminUsers(query: AdminUserListQuery): Promise<Paginated<AdminUserSummary>> {
   await connectDB();
   const filter: Record<string, unknown> = {};
   if (query.role) filter.role = query.role;
-  if (query.status) filter.status = query.status;
+  const now = new Date();
+  if (query.status === "suspended") Object.assign(filter, suspendedFilter(now));
+  if (query.status === "active") filter.$nor = [suspendedFilter(now)];
   if (query.q) {
     const rx = new RegExp(escapeRegex(query.q), "i");
     filter.$or = [{ name: rx }, { email: rx }, { phone: rx }];
@@ -100,18 +108,23 @@ export async function getAdminUser(userId: string): Promise<AdminUserDetail | nu
 export async function updateAdminUser(admin: SessionUser, userId: string, update: AdminUserUpdate): Promise<void> {
   await connectDB();
   if (userId === admin.id) throw ApiError.forbidden("You can't change your own account from the admin panel");
-  const user = await User.findById(userId, { status: 1 }).lean();
+  const user = await User.findById(userId, { status: 1, suspendedUntil: 1 }).lean();
   if (!user) throw ApiError.notFound("User not found");
+  const now = new Date();
+  const suspended = isSuspended(user, now);
 
   switch (update.action) {
-    case "suspend":
-      if (user.status === "suspended") throw ApiError.conflict("This user is already suspended");
-      await User.updateOne({ _id: user._id }, { $set: { status: "suspended" }, $inc: { sessionVersion: 1 } });
-      await logAdminAction(admin, "user.suspend", "user", user._id, update.reason);
+    case "suspend": {
+      if (suspended) throw ApiError.conflict("This user is already suspended. Reactivate first to change the period.");
+      const until = update.days ? new Date(now.getTime() + update.days * 24 * 60 * 60 * 1000) : null;
+      await User.updateOne({ _id: user._id }, { $set: { status: "suspended", suspendedUntil: until }, $inc: { sessionVersion: 1 } });
+      const period = update.days ? `${update.days} ${update.days === 1 ? "day" : "days"}` : "until lifted";
+      await logAdminAction(admin, "user.suspend", "user", user._id, `${period}: ${update.reason}`);
       return;
+    }
     case "activate":
-      if (user.status === "active") throw ApiError.conflict("This user is already active");
-      await User.updateOne({ _id: user._id }, { $set: { status: "active" } });
+      if (!suspended) throw ApiError.conflict("This user is already active");
+      await User.updateOne({ _id: user._id }, { $set: { status: "active", suspendedUntil: null } });
       await logAdminAction(admin, "user.activate", "user", user._id);
       return;
     case "signOutEverywhere":

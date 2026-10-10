@@ -8,6 +8,7 @@ import { connectDB } from "@/lib/db/connect";
 import { User } from "@/lib/db/models";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession, verifySession } from "./jwt";
 import { DASHBOARD_PATH, type UserRole } from "./roles";
+import { isSuspended } from "./suspension";
 
 /** The signed-in user as exposed to app code and the browser. */
 export type SessionUser = {
@@ -48,8 +49,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!claims) return null;
 
   await connectDB();
-  const user = await User.findById(claims.sub, { name: 1, email: 1, role: 1, status: 1, sessionVersion: 1 }).lean();
-  if (!user || user.status !== "active" || user.sessionVersion !== claims.ver) return null;
+  const user = await User.findById(claims.sub, { name: 1, email: 1, role: 1, status: 1, suspendedUntil: 1, sessionVersion: 1 }).lean();
+  if (!user || isSuspended(user, new Date()) || user.sessionVersion !== claims.ver) return null;
 
   return { id: user._id.toString(), name: user.name, email: user.email, role: user.role as UserRole };
 });

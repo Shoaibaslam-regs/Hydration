@@ -11,6 +11,8 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: USER_ROLES, required: true, default: "customer" },
     status: { type: String, enum: USER_STATUSES, required: true, default: "active" },
+    /** End of a timed suspension; null = suspended until an admin lifts it. Ignored while active. */
+    suspendedUntil: { type: Date, default: null },
     // Bump to invalidate every session issued to this user (e.g. password change).
     sessionVersion: { type: Number, required: true, default: 0 },
     lastLoginAt: { type: Date },

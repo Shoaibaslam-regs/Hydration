@@ -17,9 +17,14 @@ export function hasLocation(input: ShopSearch): input is ShopSearch & { lat: num
  * (requires the 2dsphere index on `location`), which must be the first stage.
  * Results are paginated server-side via $facet.
  */
-export function buildShopSearchPipeline(input: ShopSearch): PipelineStage[] {
+export function buildShopSearchPipeline(
+  input: ShopSearch,
+  options: { requirePlanActiveAt?: Date } = {},
+): PipelineStage[] {
   // `closure: null` also matches shops saved before the field existed.
   const match: Record<string, unknown> = { status: "verified", closure: null, "productTypes.0": { $exists: true } };
+  // Only while the "require an active plan" setting is on.
+  if (options.requirePlanActiveAt) match["subscription.endsAt"] = { $gt: options.requirePlanActiveAt };
 
   if (input.q) {
     const rx = new RegExp(escapeRegex(input.q), "i");
@@ -71,6 +76,7 @@ export function buildShopSearchPipeline(input: ShopSearch): PipelineStage[] {
               hours: 1,
               imageUrl: 1,
               distanceMeters: 1,
+              verifiedBadge: 1,
             },
           },
         ],

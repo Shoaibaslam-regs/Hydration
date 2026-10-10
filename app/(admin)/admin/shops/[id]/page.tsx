@@ -6,6 +6,7 @@ import { AdminActions } from "@/components/admin/admin-actions";
 import { AuditLog } from "@/components/admin/audit-log";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { LocationMap } from "@/components/map/location-map";
+import { VerifiedBadge } from "@/components/shops/verified-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import {
@@ -50,6 +51,7 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold">{shop.name}</h1>
+          {shop.hasVerifiedBadge && <VerifiedBadge />}
           <Badge tone={SHOP_STATUS_TONES[shop.status]}>{SHOP_STATUS_LABELS[shop.status]}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -80,7 +82,7 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
 
       {actions.length > 0 && (
         <Card className="flex flex-col gap-3">
-          <CardTitle>Verification</CardTitle>
+          <CardTitle>Approval</CardTitle>
           <AdminActions
             endpoint={`/api/admin/shops/${shop.id}`}
             actions={actions}
@@ -88,6 +90,28 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
           />
         </Card>
       )}
+
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>Verified badge</CardTitle>
+          {shop.hasVerifiedBadge ? <VerifiedBadge /> : <Badge>Not given</Badge>}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {shop.badgeGrantedAt
+            ? `Given ${formatDateTime(shop.badgeGrantedAt)}. Customers see the ✓ Verified mark next to this shop's name.`
+            : "A trust mark customers see next to the shop's name, for shops the Aqua team has checked further (e.g. visited or confirmed their licence). Separate from approval: every listed shop is approved."}
+        </p>
+        <AdminActions
+          endpoint={`/api/admin/shops/${shop.id}/badge`}
+          method="POST"
+          reasonHint={shop.hasVerifiedBadge ? "Kept in the admin history." : "Optional: what was checked. Kept in the admin history."}
+          actions={
+            shop.hasVerifiedBadge
+              ? [{ label: "Remove badge", body: { action: "revoke" }, needsReason: true, danger: true }]
+              : [{ label: "Give verified badge", body: { action: "grant" } }]
+          }
+        />
+      </Card>
 
       {shop.status === "verified" && (
         <Card className="flex flex-col gap-3">
@@ -148,6 +172,16 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
               <Link href={`/admin/orders?shopId=${shop.id}`} className="text-primary hover:underline">
                 {shop.orderCount}
               </Link>
+            </dd>
+            <dt className="text-muted-foreground">Plan</dt>
+            <dd>
+              {shop.plan ? (
+                <span className={shop.plan.active ? undefined : "text-danger"}>
+                  {shop.plan.planName} · {shop.plan.active ? "until" : "ended"} {formatDateTime(shop.plan.endsAt)}
+                </span>
+              ) : (
+                "None"
+              )}
             </dd>
             <dt className="text-muted-foreground">Rating</dt>
             <dd>{shop.rating.count ? `${shop.rating.average.toFixed(1)} ★ (${shop.rating.count})` : "No reviews"}</dd>

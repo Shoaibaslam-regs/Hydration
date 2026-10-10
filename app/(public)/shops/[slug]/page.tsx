@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { OrderBuilder } from "@/components/customer/order-builder";
 import { ShopFavorite } from "@/components/customer/shop-favorite";
 import { LocationMap } from "@/components/map/location-map";
 import { Rating } from "@/components/shops/rating";
+import { VerifiedBadge } from "@/components/shops/verified-badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
+import { getPlatformSettings } from "@/lib/services/platform-settings";
 import { getShopBySlug, type ShopDetail } from "@/lib/services/shops";
 import { shopSlugSchema } from "@/lib/validation/shops";
 
@@ -43,6 +46,10 @@ export default function ShopPage({ params }: PageProps<"/shops/[slug]">) {
 async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["params"] }) {
   const shop = await loadShop(params);
   if (!shop) notFound();
+  // The plan check compares with the current time, so render it per request.
+  await connection();
+  const settings = await getPlatformSettings();
+  const planInactive = settings.requireSubscription && !(shop.planEndsAt && new Date(shop.planEndsAt) > new Date());
 
   const address = [shop.addressLine1, shop.area, shop.city].filter(Boolean).join(", ");
 
@@ -51,7 +58,10 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
       <div className="flex flex-col gap-6 lg:col-span-2">
         <header className="flex flex-col gap-2">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <h1 className="text-2xl font-bold sm:text-3xl">{shop.name}</h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-2xl font-bold sm:text-3xl">{shop.name}</h1>
+              {shop.hasVerifiedBadge && <VerifiedBadge />}
+            </div>
             <Suspense fallback={null}>
               <ShopFavorite shopId={shop.id} slug={shop.slug} />
             </Suspense>
@@ -67,7 +77,12 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
           <h2 id="products-heading" className="text-lg font-semibold">
             Order water
           </h2>
-          {shop.closure ? (
+          {planInactive && !shop.closure ? (
+            <div role="status" className="rounded-xl border border-warning/50 bg-warning/10 p-4">
+              <p className="font-semibold">This shop isn&apos;t taking orders right now</p>
+              <p className="text-sm text-muted-foreground">Save it to find it again later, or find another shop nearby.</p>
+            </div>
+          ) : shop.closure ? (
             <div role="status" className="rounded-xl border border-warning/50 bg-warning/10 p-4">
               <p className="font-semibold">This shop is closed right now</p>
               <p className="text-sm text-muted-foreground">

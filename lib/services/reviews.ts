@@ -12,7 +12,7 @@ import { shopTag } from "./shops";
 const DUPLICATE_KEY = 11000;
 
 /** Recompute a shop's rating from all its reviews (keeps the stored average exact). */
-async function refreshShopRating(shopId: Types.ObjectId) {
+export async function refreshShopRating(shopId: Types.ObjectId) {
   const [agg] = await Review.aggregate<{ avg: number; n: number }>([
     { $match: { shopId } },
     { $group: { _id: null, avg: { $avg: "$rating" }, n: { $sum: 1 } } },

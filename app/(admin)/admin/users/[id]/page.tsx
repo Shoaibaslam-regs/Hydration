@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { AdminActions, type AdminAction } from "@/components/admin/admin-actions";
 import { AuditLog } from "@/components/admin/audit-log";
 import { ResetLinkButton } from "@/components/admin/reset-link-button";
+import { DeleteUser, SuspendUserForm } from "@/components/admin/user-controls";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
@@ -32,11 +33,8 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
 
   const actions: AdminAction[] =
     user.status === "active"
-      ? [
-          { label: "Sign out everywhere", body: { action: "signOutEverywhere" }, confirm: `Sign ${user.name} out of every device?` },
-          { label: "Suspend account", body: { action: "suspend" }, needsReason: true, danger: true },
-        ]
-      : [{ label: "Reactivate account", body: { action: "activate" } }];
+      ? [{ label: "Sign out everywhere", body: { action: "signOutEverywhere" }, confirm: `Sign ${user.name} out of every device?` }]
+      : [{ label: "Lift suspension now", body: { action: "activate" } }];
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,7 +45,9 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold">{user.name}</h1>
           <Badge tone="info">{user.role}</Badge>
-          {user.status === "suspended" && <Badge tone="danger">Suspended</Badge>}
+          {user.status === "suspended" && (
+            <Badge tone="danger">{user.suspendedUntil ? `Suspended until ${formatDateTime(user.suspendedUntil)}` : "Suspended"}</Badge>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           {user.email}
@@ -63,10 +63,17 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
         ) : (
           <>
             <CardDescription>
-              Suspended users are signed out immediately and can&apos;t log in.
-              {user.role === "shopkeeper" && " Their shop stays live unless you suspend it separately."}
+              {user.status === "suspended"
+                ? user.suspendedUntil
+                  ? `Suspended until ${formatDateTime(user.suspendedUntil)}. The account unlocks automatically then.`
+                  : "Suspended until an admin lifts it."
+                : "Suspended users are signed out immediately and can't log in until the suspension ends."}
+              {user.role === "shopkeeper" && " Their shop stays live unless you close or suspend it separately."}
             </CardDescription>
-            <AdminActions endpoint={`/api/admin/users/${user.id}`} actions={actions} reasonHint="Kept in the admin history." />
+            <div className="flex flex-wrap items-start gap-2">
+              <AdminActions endpoint={`/api/admin/users/${user.id}`} actions={actions} reasonHint="Kept in the admin history." />
+              {user.status === "active" && <SuspendUserForm userId={user.id} />}
+            </div>
             <div className="border-t border-border pt-3">
               <p className="mb-2 text-sm font-medium">Forgotten password</p>
               <ResetLinkButton userId={user.id} />
@@ -96,6 +103,23 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
       )}
 
       <AuditLog entries={user.history} />
+
+      {!isSelf && (
+        <Card className="flex flex-col gap-3 border-danger/40">
+          <CardTitle>Danger zone</CardTitle>
+          <CardDescription>
+            Deleting this account can&apos;t be undone.{" "}
+            {user.role === "customer" &&
+              `Their addresses, reviews and saved shops are deleted, unfinished orders are cancelled, and their ${user.orderCount} past ${user.orderCount === 1 ? "order keeps" : "orders keep"} totals for the shops' records but lose the name, phone and street address.`}
+            {user.role === "shopkeeper" &&
+              (user.shop
+                ? `Their shop "${user.shop.name}" is removed with its products and reviews, and its unfinished orders are cancelled. Plan payment records are kept.`
+                : "They haven't registered a shop.")}
+            {user.role === "admin" && "They lose admin access immediately."} To stop access for a while instead, suspend the account.
+          </CardDescription>
+          <DeleteUser userId={user.id} email={user.email} />
+        </Card>
+      )}
     </div>
   );
 }

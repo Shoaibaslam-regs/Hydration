@@ -3,16 +3,24 @@ import { formatDateTime } from "@/lib/catalog";
 import type { AuditEntry } from "@/lib/services/admin/audit";
 
 const ACTION_LABELS: Record<string, string> = {
-  "shop.verified": "Verified shop",
+  "shop.verified": "Approved shop",
   "shop.rejected": "Rejected shop",
   "shop.suspended": "Suspended shop",
   "shop.closed": "Closed shop",
   "shop.reopened": "Reopened shop",
   "shop.removed": "Removed shop permanently",
+  "shop.badge.granted": "Gave verified badge",
+  "shop.badge.revoked": "Removed verified badge",
   "user.suspend": "Suspended user",
   "user.activate": "Reactivated user",
   "user.signOutEverywhere": "Signed out all sessions",
+  "user.deleted": "Deleted account",
   "user.resetLink": "Created password reset link",
+  "subscription.approved": "Approved plan payment",
+  "subscription.rejected": "Rejected plan payment",
+  "settings.requireSubscription.on": "Turned on: require an active plan",
+  "settings.requireSubscription.off": "Turned off: require an active plan",
+  "settings.paymentInstructions": "Updated payment instructions",
   "order.cancel": "Cancelled order",
 };
 

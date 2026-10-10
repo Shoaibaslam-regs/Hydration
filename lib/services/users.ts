@@ -2,6 +2,8 @@ import "server-only";
 import { ApiError } from "@/lib/api/errors";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import type { UserRole } from "@/lib/auth/roles";
+import { isSuspended } from "@/lib/auth/suspension";
+import { formatDateTime } from "@/lib/catalog";
 import { connectDB } from "@/lib/db/connect";
 import { User } from "@/lib/db/models";
 import type { LoginInput, RegisterInput } from "@/lib/validation/auth";
@@ -49,7 +51,15 @@ export async function authenticate(input: LoginInput): Promise<AuthenticatedUser
   const user = await User.findOne({ email: input.email }).select("+passwordHash").lean();
   const ok = await verifyPassword(input.password, user?.passwordHash);
   if (!user || !ok) return null;
-  if (user.status !== "active") throw ApiError.forbidden("This account has been suspended");
+  if (isSuspended(user, new Date())) {
+    throw ApiError.forbidden(
+      user.suspendedUntil
+        ? `This account is suspended until ${formatDateTime(user.suspendedUntil.toISOString())}`
+        : "This account has been suspended",
+    );
+  }
+  // A timed suspension that has run out: tidy the record on the next login.
+  if (user.status === "suspended") await User.updateOne({ _id: user._id }, { $set: { status: "active", suspendedUntil: null } });
 
   await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
   return {

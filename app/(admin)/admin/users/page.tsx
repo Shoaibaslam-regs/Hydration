@@ -84,7 +84,9 @@ async function UsersContent({ searchParams }: { searchParams: PageProps<"/admin/
                   </span>
                   <span className="flex gap-1.5">
                     <Badge tone="info">{u.role}</Badge>
-                    {u.status === "suspended" && <Badge tone="danger">Suspended</Badge>}
+                    {u.status === "suspended" && (
+                      <Badge tone="danger">{u.suspendedUntil ? `Suspended until ${formatDateTime(u.suspendedUntil)}` : "Suspended"}</Badge>
+                    )}
                   </span>
                 </Link>
               </li>

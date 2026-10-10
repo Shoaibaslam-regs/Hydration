@@ -61,7 +61,7 @@ Demo shops are created as verified, except one left pending so the review queue 
 
 ## Production notes
 
-- **Payments.** Orders are cash on delivery. Online payments and shop subscription billing aren't implemented yet.
+- **Payments.** Customer orders are cash on delivery. Shop plans are billed manually: shopkeepers pay by bank transfer, JazzCash or Easypaisa and submit the reference at `/shop/billing`, and an admin approves it at `/admin/subscriptions`. Set your account details there under "Payment instructions". "Require an active plan to be listed" is an admin switch that starts off. No card or wallet gateway is connected.
 - **Maps.** Map tiles and the address search both use OpenStreetMap's free public services, which are only meant for light use. Before launch, switch to a commercial tile provider (`components/map/location-map.tsx` and `img-src` in `next.config.ts`) and a paid or self-hosted geocoder (`GEOCODER_URL`).
 - **Proxy.** Rate limits are stored in MongoDB and shared across instances. Per-IP limits use `X-Forwarded-For`, so deploy behind a proxy that sets that header.
 - **Assumptions to confirm.** Currency (`PKR`), time zone (`Asia/Karachi`) and plan prices are set in `lib/catalog.ts` and `lib/plans.ts`.

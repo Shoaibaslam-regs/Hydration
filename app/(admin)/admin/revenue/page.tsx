@@ -109,14 +109,18 @@ async function RevenueContent({ searchParams }: { searchParams: PageProps<"/admi
             </table>
           )}
         </Card>
-        <Card className="flex flex-col gap-2">
-          <CardTitle>Platform revenue</CardTitle>
+        <div className="flex flex-col gap-3">
+          <StatTile
+            label="Platform revenue (approved plan payments)"
+            value={formatPrice(t.subscriptionRevenue)}
+            delta={percentChange(t.subscriptionRevenue, a.previousSubscriptionRevenue)}
+            deltaLabel={period}
+          />
           <CardDescription>
-            Aqua&apos;s own revenue will come from shop subscriptions, which aren&apos;t set up yet. The figures above
-            are the value of customer orders paid to shops (cash on delivery), including {formatPrice(t.deliveryFees)}{" "}
-            in delivery fees.
+            {t.approvedPayments} {t.approvedPayments === 1 ? "payment" : "payments"} approved in this period. Order values above
+            are money customers paid to shops (cash on delivery), including {formatPrice(t.deliveryFees)} in delivery fees.
           </CardDescription>
-        </Card>
+        </div>
       </div>
     </>
   );

@@ -1,7 +1,9 @@
+import Image from "next/image";
 import Link from "next/link";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
+import heroImage from "@/public/images/home-hero.png";
 
 const steps = [
   { title: "Find nearby shops", body: "See verified water shops around your location, with prices and ratings." },
@@ -12,12 +14,24 @@ const steps = [
 export default function Home() {
   return (
     <>
-      <section className="bg-gradient-to-b from-accent/60 to-background">
-        <Container className="flex flex-col items-start gap-6 py-16 sm:py-24">
-          <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
+      {/* The photo is dark in both color themes, so the hero text is always white. */}
+      <section className="relative isolate overflow-hidden bg-[#06142e] text-white">
+        <Image
+          src={heroImage}
+          alt=""
+          fill
+          preload
+          placeholder="blur"
+          sizes="100vw"
+          className="-z-10 object-cover object-[75%_center]"
+        />
+        {/* Shade the left side so the text stays readable where the photo shows through on phones. */}
+        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-[#06142e]/95 via-[#06142e]/75 to-[#06142e]/10 md:via-[#06142e]/40 md:to-transparent" />
+        <Container className="flex min-h-[28rem] flex-col items-start justify-center gap-6 py-16 sm:min-h-[32rem] sm:py-24 lg:min-h-[36rem]">
+          <h1 className="max-w-2xl text-4xl font-bold tracking-tight drop-shadow-sm sm:text-5xl">
             Clean drinking water, delivered from shops near you.
           </h1>
-          <p className="max-w-xl text-lg text-muted-foreground">
+          <p className="max-w-xl text-lg text-white/85">
             Aqua connects you with verified local water shops. Compare prices, book in a few taps, and track
             every delivery.
           </p>
@@ -25,7 +39,7 @@ export default function Home() {
             <Link href="/shops" className={buttonClasses({ size: "lg" })}>
               Find shops near me
             </Link>
-            <Link href="/pricing" className={buttonClasses({ size: "lg", variant: "secondary" })}>
+            <Link href="/pricing" className={buttonClasses({ size: "lg", variant: "on-dark" })}>
               List your shop
             </Link>
           </div>

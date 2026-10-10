@@ -10,6 +10,7 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { getMyShop, getMyShopStats } from "@/lib/services/my-shop";
+import { getMyBilling } from "@/lib/services/billing";
 import { listShopOrders } from "@/lib/services/shop-orders";
 
 export const metadata: Metadata = { title: "Shop dashboard" };
@@ -33,7 +34,7 @@ async function ShopOverview() {
         <Card className="flex flex-col items-start gap-3">
           <CardTitle>Register your shop</CardTitle>
           <CardDescription>
-            Add your shop&apos;s details and location. After our team verifies it, customers nearby can find you and
+            Add your shop&apos;s details and location. After our team approves it, customers nearby can find you and
             place orders.
           </CardDescription>
           <Link href="/shop/profile" className={buttonClasses()}>
@@ -44,10 +45,12 @@ async function ShopOverview() {
     );
   }
 
-  const [stats, recent] = await Promise.all([
+  const [stats, recent, billing] = await Promise.all([
     getMyShopStats(shop.id),
     listShopOrders(shop, { page: 1, limit: 5 }),
+    getMyBilling(shop),
   ]);
+  const plan = billing.subscription;
 
   const tiles = [
     { label: "New orders", value: stats.newOrders, href: "/shop/orders?status=pending", alert: stats.newOrders > 0 },
@@ -104,9 +107,18 @@ async function ShopOverview() {
         )}
       </Card>
 
-      <Card className="flex flex-col gap-1">
-        <CardTitle>Subscription</CardTitle>
-        <CardDescription>Plan selection and billing aren&apos;t available yet.</CardDescription>
+      <Card className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <CardTitle>Plan</CardTitle>
+          <CardDescription>
+            {plan
+              ? `${plan.planName} · ${plan.active ? "paid until" : "ended"} ${formatDateTime(plan.endsAt)}`
+              : "You haven't paid for a plan yet."}
+          </CardDescription>
+        </div>
+        <Link href="/shop/billing" className={buttonClasses({ variant: plan?.active ? "secondary" : "primary", size: "sm" })}>
+          {plan?.active ? "Billing" : "Pay for a plan"}
+        </Link>
       </Card>
     </div>
   );

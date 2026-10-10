@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { USER_ROLES } from "@/lib/auth/roles";
+import { SUSPENSION_DAYS, type SuspensionDays } from "@/lib/auth/suspension";
 import { ORDER_STATUSES } from "@/lib/orders/status";
 import { paginationSchema } from "./pagination";
 import { objectIdSchema } from "./shopkeeper";
@@ -26,7 +27,12 @@ export const adminUserListSchema = paginationSchema.extend({
 export type AdminUserListQuery = z.infer<typeof adminUserListSchema>;
 
 export const adminUserUpdateSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("suspend"), reason: z.string().trim().min(1, "Give a reason").max(500) }),
+  z.object({
+    action: z.literal("suspend"),
+    reason: z.string().trim().min(1, "Give a reason").max(500),
+    /** null = until an admin lifts it. */
+    days: z.union([...SUSPENSION_DAYS.map((d) => z.literal(d)), z.null()] as unknown as [z.ZodLiteral<SuspensionDays>, z.ZodNull]).default(null),
+  }),
   z.object({ action: z.literal("activate") }),
   z.object({ action: z.literal("signOutEverywhere") }),
 ]);
@@ -53,5 +59,15 @@ export const adminShopClosureSchema = z.discriminatedUnion("action", [
 ]);
 
 export const adminShopRemoveSchema = z.object({
+  reason: z.string().trim().min(1, "Give a reason").max(300),
+});
+
+export const adminShopBadgeSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("grant"), reason: z.string().trim().max(300).default("") }),
+  z.object({ action: z.literal("revoke"), reason: z.string().trim().min(1, "Give a reason").max(300) }),
+]);
+
+export const adminUserDeleteSchema = z.object({
+  confirmEmail: z.string().trim().min(1, "Type the user's email to confirm").max(254),
   reason: z.string().trim().min(1, "Give a reason").max(300),
 });

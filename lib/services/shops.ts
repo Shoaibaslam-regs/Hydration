@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Product, Review, Shop } from "@/lib/db/models";
 import { paginated, type Paginated } from "@/lib/validation/pagination";
 import type { ShopSearch } from "@/lib/validation/shops";
+import { getPlatformSettings } from "./platform-settings";
 import { buildShopSearchPipeline } from "./shop-search";
 
 // DTOs: plain, serializable shapes safe to send to the browser.
@@ -25,6 +26,8 @@ export type ShopSummary = {
   distanceKm: number | null;
   /** True while the shop is temporarily closed (search never returns closed shops). */
   isClosed: boolean;
+  /** Admin-granted "Verified" trust badge. */
+  hasVerifiedBadge: boolean;
 };
 
 export type ProductSummary = {
@@ -48,6 +51,8 @@ export type ShopDetail = Omit<ShopSummary, "distanceKm"> & {
   reviews: { id: string; authorName: string; rating: number; comment: string; createdAt: string }[];
   /** Why the shop is closed, if it is (shown on the public page). */
   closure: { by: "shopkeeper" | "admin"; reason: string } | null;
+  /** End of the shop's paid plan, if any. Only matters while plans are required. */
+  planEndsAt: string | null;
 };
 
 /** Cache tag for a shop's public page; revalidate it when the shop or its products change. */
@@ -66,6 +71,7 @@ type ShopRow = {
   imageUrl?: string | null;
   distanceMeters?: number;
   closure?: { by: string; reason?: string | null } | null;
+  verifiedBadge?: { grantedAt: Date } | null;
 };
 
 function toShopSummary(row: ShopRow): ShopSummary {
@@ -83,14 +89,16 @@ function toShopSummary(row: ShopRow): ShopSummary {
     imageUrl: row.imageUrl ?? null,
     distanceKm: row.distanceMeters === undefined ? null : row.distanceMeters / 1000,
     isClosed: Boolean(row.closure),
+    hasVerifiedBadge: Boolean(row.verifiedBadge),
   };
 }
 
 /** Public shop discovery. Not cached: results depend on the visitor's location and filters. */
 export async function searchShops(input: ShopSearch): Promise<Paginated<ShopSummary>> {
   await connectDB();
+  const settings = await getPlatformSettings();
   const [result] = await Shop.aggregate<{ items: ShopRow[]; total: { n: number }[] }>(
-    buildShopSearchPipeline(input),
+    buildShopSearchPipeline(input, { requirePlanActiveAt: settings.requireSubscription ? new Date() : undefined }),
   );
   return paginated(result.items.map(toShopSummary), result.total[0]?.n ?? 0, input);
 }
@@ -117,6 +125,7 @@ export async function getShopBySlug(slug: string): Promise<ShopDetail | null> {
     phone: shop.phone,
     addressLine1: shop.address.line1,
     closure: shop.closure ? { by: shop.closure.by as "shopkeeper" | "admin", reason: shop.closure.reason ?? "" } : null,
+    planEndsAt: shop.subscription?.endsAt ? shop.subscription.endsAt.toISOString() : null,
     deliveryRadiusKm: shop.deliveryRadiusKm ?? 0,
     location: { lat, lng },
     products: products.map((p) => ({

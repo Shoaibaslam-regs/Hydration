@@ -26,8 +26,8 @@ async function AdminOverview() {
   ]);
 
   const stats = [
-    { label: "Shops awaiting verification", value: counts.shops.pending, href: "/admin/shops?status=pending", alert: counts.shops.pending > 0 },
-    { label: "Verified shops", value: counts.shops.verified, href: "/admin/shops?status=verified" },
+    { label: "Shops awaiting approval", value: counts.shops.pending, href: "/admin/shops?status=pending", alert: counts.shops.pending > 0 },
+    { label: "Approved shops", value: counts.shops.verified, href: "/admin/shops?status=verified" },
     { label: "Suspended shops", value: counts.shops.suspended, href: "/admin/shops?status=suspended" },
     { label: "Customers", value: counts.users.customer, href: "/admin/users?role=customer" },
     { label: "Shopkeepers", value: counts.users.shopkeeper, href: "/admin/users?role=shopkeeper" },
@@ -50,7 +50,7 @@ async function AdminOverview() {
 
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle>Verification queue</CardTitle>
+          <CardTitle>Approval queue</CardTitle>
           {queue.total > 0 && (
             <Link href="/admin/shops?status=pending" className="text-sm font-medium text-primary hover:underline">
               View all {queue.total}

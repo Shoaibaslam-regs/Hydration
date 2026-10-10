@@ -97,9 +97,9 @@ describe("admin", () => {
     const admin = await createUser("admin", "Admin");
     const user = await createUser("customer");
     await expect(updateAdminUser(admin, admin.id, { action: "signOutEverywhere" })).rejects.toMatchObject({ status: 403 });
-    await updateAdminUser(admin, user.id, { action: "suspend", reason: "Fraud" });
+    await updateAdminUser(admin, user.id, { action: "suspend", reason: "Fraud", days: null });
     expect(await User.findById(user.id).lean()).toMatchObject({ status: "suspended", sessionVersion: 1 });
-    await expect(updateAdminUser(admin, user.id, { action: "suspend", reason: "again" })).rejects.toMatchObject({ status: 409 });
+    await expect(updateAdminUser(admin, user.id, { action: "suspend", reason: "again", days: null })).rejects.toMatchObject({ status: 409 });
   });
 
   it("cancels unfinished orders with stock returned, but not delivered ones", async () => {

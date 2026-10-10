@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 const steps = [
   { title: "Register your shop", body: "Add your shop details, location, and products." },
-  { title: "Get verified", body: "Our team reviews and approves your shop." },
+  { title: "Get approved", body: "Our team reviews and approves your shop." },
   { title: "Go live", body: "With an active plan, customers nearby can find and order from you." },
 ];
 

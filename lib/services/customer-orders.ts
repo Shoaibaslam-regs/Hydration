@@ -11,6 +11,7 @@ import { distanceKm } from "@/lib/geo";
 import { canCustomerMove, REVIEWABLE_STATUS, type OrderStatus } from "@/lib/orders/status";
 import { paginated, skipFor, type Paginated, type Pagination } from "@/lib/validation/pagination";
 import type { OrderCreateInput } from "@/lib/validation/customer";
+import { getPlatformSettings, hasActivePlan } from "./platform-settings";
 import { shopTag } from "./shops";
 import { returnStock } from "./stock";
 
@@ -64,6 +65,9 @@ export async function placeOrder(user: SessionUser, input: OrderCreateInput): Pr
   const shop = await Shop.findOne({ slug: input.shopSlug, status: "verified" }).lean();
   if (!shop) throw ApiError.notFound("This shop isn't taking orders right now");
   if (shop.closure) throw ApiError.conflict(`${shop.name} is closed right now and isn't taking new orders.`);
+  if ((await getPlatformSettings()).requireSubscription && !hasActivePlan(shop, new Date())) {
+    throw ApiError.conflict(`${shop.name} isn't taking orders right now.`);
+  }
 
   const address = await Address.findOne({ _id: input.addressId, userId: customerId }).lean();
   if (!address) throw ApiError.badRequest("Choose a delivery address", { fieldErrors: { addressId: ["Choose a delivery address"] } });

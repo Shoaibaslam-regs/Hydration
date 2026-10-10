@@ -47,5 +47,6 @@ export async function listFavoriteShops(userId: string): Promise<ShopSummary[]> 
       imageUrl: s.imageUrl ?? null,
       distanceKm: null,
       isClosed: Boolean(s.closure),
+      hasVerifiedBadge: Boolean(s.verifiedBadge),
     }));
 }

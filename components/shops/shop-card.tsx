@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { formatDistance, formatPrice, PRODUCT_TYPE_LABELS } from "@/lib/catalog";
 import type { ShopSummary } from "@/lib/services/shops";
 import { Rating } from "./rating";
+import { VerifiedBadge } from "./verified-badge";
 
 export function ShopCard({ shop }: { shop: ShopSummary }) {
   const place = [shop.area, shop.city].filter(Boolean).join(", ");
@@ -11,11 +12,12 @@ export function ShopCard({ shop }: { shop: ShopSummary }) {
     <Card className="relative flex flex-col gap-3 transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate font-semibold">
+          <h3 className="flex min-w-0 items-center gap-1.5 font-semibold">
             {/* Stretched link: the whole card is clickable. */}
-            <Link href={`/shops/${shop.slug}`} className="after:absolute after:inset-0 hover:text-primary">
+            <Link href={`/shops/${shop.slug}`} className="truncate after:absolute after:inset-0 hover:text-primary">
               {shop.name}
             </Link>
+            {shop.hasVerifiedBadge && <VerifiedBadge compact />}
           </h3>
           <p className="truncate text-sm text-muted-foreground">{place}</p>
         </div>

@@ -59,6 +59,26 @@ const shopSchema = new Schema(
      * verification status. Closed by an admin → only an admin can reopen.
      */
     closure: { type: closureSchema, default: null },
+    /**
+     * Public "Verified" trust badge, granted by an admin to shops the Aqua team
+     * has checked further. Separate from `status` (every listed shop is
+     * approved); null when the shop doesn't have it.
+     */
+    verifiedBadge: {
+      type: new Schema(
+        { grantedAt: { type: Date, required: true }, grantedBy: { type: Schema.Types.ObjectId, ref: "User", required: true } },
+        { _id: false },
+      ),
+      default: null,
+    },
+    /**
+     * Current paid plan, set when an admin approves a subscription payment.
+     * Only enforced while PlatformSettings.requireSubscription is on.
+     */
+    subscription: {
+      type: new Schema({ planId: { type: String, required: true }, endsAt: { type: Date, required: true } }, { _id: false }),
+      default: null,
+    },
     imageUrl: { type: String },
     rating: {
       average: { type: Number, default: 0, min: 0, max: 5 },
@@ -76,6 +96,7 @@ const shopSchema = new Schema(
 shopSchema.index({ location: "2dsphere" });
 shopSchema.index({ status: 1, "rating.average": -1 });
 shopSchema.index({ status: 1, "address.city": 1 });
+shopSchema.index({ "subscription.endsAt": 1 });
 
 export type ShopDoc = InferSchemaType<typeof shopSchema>;
 
