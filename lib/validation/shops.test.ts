@@ -22,7 +22,6 @@ describe("shopSearchSchema", () => {
   it("rejects out-of-range and unknown values", () => {
     expect(shopSearchSchema.safeParse({ lat: "91", lng: "0" }).success).toBe(false);
     expect(shopSearchSchema.safeParse({ radiusKm: "500" }).success).toBe(false);
-    expect(shopSearchSchema.safeParse({ type: "juice" }).success).toBe(false);
     expect(shopSearchSchema.safeParse({ sort: "random" }).success).toBe(false);
   });
 });

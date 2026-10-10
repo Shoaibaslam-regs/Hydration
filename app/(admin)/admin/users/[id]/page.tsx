@@ -113,7 +113,7 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
               `Their addresses, reviews and saved shops are deleted, unfinished orders are cancelled, and their ${user.orderCount} past ${user.orderCount === 1 ? "order keeps" : "orders keep"} totals for the shops' records but lose the name, phone and street address.`}
             {user.role === "shopkeeper" &&
               (user.shop
-                ? `Their shop "${user.shop.name}" is removed with its products and reviews, and its unfinished orders are cancelled. Plan payment records are kept.`
+                ? `Their shop "${user.shop.name}" is removed with its reviews, and its unfinished orders are cancelled. Plan payment records are kept.`
                 : "They haven't registered a shop.")}
             {user.role === "admin" && "They lose admin access immediately."} To stop access for a while instead, suspend the account.
           </CardDescription>

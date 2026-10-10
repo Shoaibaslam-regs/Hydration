@@ -3,10 +3,12 @@ import { randomBytes } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { Types } from "mongoose";
 import { ApiError } from "@/lib/api/errors";
-import { LOW_STOCK_THRESHOLD, toMinorUnits } from "@/lib/catalog";
+import { toMinorUnits } from "@/lib/catalog";
 import { connectDB } from "@/lib/db/connect";
-import { Order, Product, Shop } from "@/lib/db/models";
+import { Order, Shop } from "@/lib/db/models";
 import type { ShopStatus } from "@/lib/db/models/shop";
+import { TRIAL_PLAN_ID } from "@/lib/plans";
+import { shopSearchText } from "@/lib/search/text";
 import type { ShopInput } from "@/lib/validation/shopkeeper";
 import { removeShopData } from "./shop-removal";
 import { shopTag } from "./shops";
@@ -23,11 +25,15 @@ export type MyShop = {
   deliveryRadiusKm: number;
   /** Minor currency units. */
   deliveryFee: number;
+  /** Price of one 19L can, minor units; null until set. */
+  pricePerCan: number | null;
   hours: { opensAt: string; closesAt: string };
   status: ShopStatus;
   statusReason: string;
   closure: { by: "shopkeeper" | "admin"; at: string; reason: string } | null;
   hasVerifiedBadge: boolean;
+  /** The free trial or paid period; null before the shop is first approved. */
+  plan: { planId: string; isTrial: boolean; endsAt: string; active: boolean } | null;
 };
 
 type ShopLean = {
@@ -40,11 +46,13 @@ type ShopLean = {
   location: { coordinates: number[] };
   deliveryRadiusKm?: number | null;
   deliveryFee?: number | null;
+  pricePerCan?: number | null;
   hours?: { opensAt?: string | null; closesAt?: string | null } | null;
   status: string;
   statusReason?: string | null;
   closure?: { by: string; at: Date; reason?: string | null } | null;
   verifiedBadge?: { grantedAt: Date } | null;
+  subscription?: { planId: string; endsAt: Date } | null;
 };
 
 function toMyShop(shop: ShopLean): MyShop {
@@ -59,6 +67,7 @@ function toMyShop(shop: ShopLean): MyShop {
     location: { lat, lng },
     deliveryRadiusKm: shop.deliveryRadiusKm ?? 0,
     deliveryFee: shop.deliveryFee ?? 0,
+    pricePerCan: shop.pricePerCan ?? null,
     hours: { opensAt: shop.hours?.opensAt ?? "08:00", closesAt: shop.hours?.closesAt ?? "22:00" },
     status: shop.status as ShopStatus,
     statusReason: shop.statusReason ?? "",
@@ -66,11 +75,20 @@ function toMyShop(shop: ShopLean): MyShop {
       ? { by: shop.closure.by as "shopkeeper" | "admin", at: shop.closure.at.toISOString(), reason: shop.closure.reason ?? "" }
       : null,
     hasVerifiedBadge: Boolean(shop.verifiedBadge),
+    plan: shop.subscription
+      ? {
+          planId: shop.subscription.planId,
+          isTrial: shop.subscription.planId === TRIAL_PLAN_ID,
+          endsAt: shop.subscription.endsAt.toISOString(),
+          active: shop.subscription.endsAt > new Date(),
+        }
+      : null,
   };
 }
 
 function toDocFields(input: ShopInput) {
   return {
+    searchText: shopSearchText(input),
     name: input.name,
     description: input.description,
     phone: input.phone,
@@ -78,6 +96,7 @@ function toDocFields(input: ShopInput) {
     location: { type: "Point" as const, coordinates: [input.location.lng, input.location.lat] },
     deliveryRadiusKm: input.deliveryRadiusKm,
     deliveryFee: toMinorUnits(input.deliveryFee),
+    pricePerCan: toMinorUnits(input.pricePerCan),
     hours: input.hours,
   };
 }
@@ -198,16 +217,16 @@ export async function deleteMyShop(ownerId: string, confirmName: string): Promis
   return removeShopData(shop, "shopkeeper", "The shop has closed permanently");
 }
 
-export type MyShopStats = { activeProducts: number; lowStock: number; newOrders: number; activeOrders: number };
+export type MyShopStats = { newOrders: number; activeOrders: number; deliveredLast30Days: number };
 
 export async function getMyShopStats(shopId: string): Promise<MyShopStats> {
   await connectDB();
   const id = new Types.ObjectId(shopId);
-  const [activeProducts, lowStock, newOrders, activeOrders] = await Promise.all([
-    Product.countDocuments({ shopId: id, isActive: true }),
-    Product.countDocuments({ shopId: id, isActive: true, stock: { $lte: LOW_STOCK_THRESHOLD } }),
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [newOrders, activeOrders, deliveredLast30Days] = await Promise.all([
     Order.countDocuments({ shopId: id, status: "pending" }),
     Order.countDocuments({ shopId: id, status: { $in: ["confirmed", "out_for_delivery"] } }),
+    Order.countDocuments({ shopId: id, status: "delivered", createdAt: { $gte: since } }),
   ]);
-  return { activeProducts, lowStock, newOrders, activeOrders };
+  return { newOrders, activeOrders, deliveredLast30Days };
 }

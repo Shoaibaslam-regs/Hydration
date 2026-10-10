@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
+import { NotificationDot } from "@/components/notifications/count-badge";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,9 +50,12 @@ async function OrdersContent({ searchParams }: { searchParams: PageProps<"/accou
             <li key={o.id}>
               <Link href={`/account/orders/${o.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-muted/50">
                 <span className="flex min-w-0 flex-col">
-                  <span className="font-medium">{o.shop.name}</span>
+                  <span className="flex items-center gap-2 font-medium">
+                    {o.shop.name}
+                    {o.unread && <NotificationDot label="Updated" />}
+                  </span>
                   <span className="text-sm text-muted-foreground">
-                    {o.orderNumber} · {o.itemCount} {o.itemCount === 1 ? "item" : "items"} · {formatDateTime(o.createdAt)}
+                    {o.orderNumber} · {o.itemCount} {o.itemCount === 1 ? "can" : "cans"} · {formatDateTime(o.createdAt)}
                   </span>
                 </span>
                 <span className="flex items-center gap-3">

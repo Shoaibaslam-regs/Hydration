@@ -13,6 +13,7 @@
     "db:indexes": "tsx --env-file=.env scripts/sync-indexes.ts",
     "db:seed": "tsx --conditions=react-server --env-file=.env scripts/seed.ts",
     "user:create-admin": "tsx --conditions=react-server --env-file=.env scripts/create-admin.ts",
+    "db:migrate": "tsx --conditions=react-server --env-file=.env scripts/migrate-cans.ts",
     "shop:set-status": "tsx --conditions=react-server --env-file=.env scripts/set-shop-status.ts",
     "dev:https": "next dev --experimental-https --hostname 0.0.0.0"
   },

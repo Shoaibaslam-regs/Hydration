@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { formatDistance, formatPrice, PRODUCT_TYPE_LABELS } from "@/lib/catalog";
+import { CAN_SIZE_LITERS, formatDistance, formatPrice } from "@/lib/catalog";
 import type { ShopSummary } from "@/lib/services/shops";
 import { DealTag } from "@/components/ads/deal-tag";
 import { cn } from "@/lib/utils";
@@ -48,19 +48,11 @@ export function ShopCard({ shop, sponsored = false }: { shop: ShopSummary; spons
 
       {shop.deal && <DealTag title={shop.deal.title} />}
 
-      <div className="flex flex-wrap gap-1.5">
-        {shop.productTypes.map((type) => (
-          <Badge key={type} tone="info">
-            {PRODUCT_TYPE_LABELS[type]}
-          </Badge>
-        ))}
-      </div>
-
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-sm">
         <span>
-          {shop.minPrice !== null && (
+          {shop.pricePerCan !== null && (
             <>
-              From <span className="font-semibold">{formatPrice(shop.minPrice)}</span>
+              <span className="font-semibold">{formatPrice(shop.pricePerCan)}</span> / {CAN_SIZE_LITERS}L can
             </>
           )}
         </span>

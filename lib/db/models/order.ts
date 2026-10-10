@@ -2,11 +2,12 @@ import { Schema, model, models, type InferSchemaType } from "mongoose";
 import { PRODUCT_TYPES } from "@/lib/catalog";
 import { ORDER_STATUSES } from "@/lib/orders/status";
 
-// Order lines snapshot product details so later product edits/deletions
-// don't change past orders.
+// Order lines are a snapshot of what was bought, so later price changes don't
+// change past orders. New orders have one line of 19L cans; orders placed
+// before the product catalog was removed may have several (with productId).
 const orderItemSchema = new Schema(
   {
-    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    productId: { type: Schema.Types.ObjectId },
     name: { type: String, required: true },
     type: { type: String, enum: PRODUCT_TYPES, required: true },
     sizeLiters: { type: Number },
@@ -54,6 +55,8 @@ const orderSchema = new Schema(
     contactName: { type: String, required: true },
     contactPhone: { type: String, required: true },
     status: { type: String, enum: ORDER_STATUSES, required: true, default: "pending" },
+    /** True when the shop or an admin changed the status and the customer hasn't opened the order since. */
+    customerUnread: { type: Boolean, default: false },
     statusHistory: { type: [statusEventSchema], default: [] },
     // Customer order payment. Kept separate from shop subscription billing.
     payment: {
@@ -74,6 +77,7 @@ const orderSchema = new Schema(
 orderSchema.index({ shopId: 1, status: 1, createdAt: -1 });
 orderSchema.index({ shopId: 1, createdAt: -1 });
 orderSchema.index({ customerId: 1, createdAt: -1 });
+orderSchema.index({ customerId: 1, customerUnread: 1 });
 // Platform-wide date-range analytics and exports.
 orderSchema.index({ createdAt: -1 });
 

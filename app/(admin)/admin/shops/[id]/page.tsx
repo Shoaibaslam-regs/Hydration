@@ -165,8 +165,8 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
             <dd>
               {shop.hours.opensAt}–{shop.hours.closesAt}
             </dd>
-            <dt className="text-muted-foreground">Products</dt>
-            <dd>{shop.productCount}</dd>
+            <dt className="text-muted-foreground">Price per can</dt>
+            <dd>{shop.pricePerCan ? formatPrice(shop.pricePerCan) : <span className="text-danger">Not set (hidden from search)</span>}</dd>
             <dt className="text-muted-foreground">Orders</dt>
             <dd>
               <Link href={`/admin/orders?shopId=${shop.id}`} className="text-primary hover:underline">
@@ -180,7 +180,7 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
                   {shop.plan.planName} · {shop.plan.active ? "until" : "ended"} {formatDateTime(shop.plan.endsAt)}
                 </span>
               ) : (
-                "None"
+                "Trial starts on approval"
               )}
             </dd>
             <dt className="text-muted-foreground">Rating</dt>
@@ -201,7 +201,7 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
       <Card className="flex flex-col gap-3 border-danger/40">
         <CardTitle>Danger zone</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Removing the shop deletes it with its {shop.productCount} {shop.productCount === 1 ? "product" : "products"}, reviews and saved-shop links, and cancels any
+          Removing the shop deletes it with its reviews and saved-shop links, and cancels any
           unfinished orders. Past orders stay in customers&apos; history. The shopkeeper&apos;s account is kept. This can&apos;t be
           undone. To hide the shop for a while instead, close it.
         </p>

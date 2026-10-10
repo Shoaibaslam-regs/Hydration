@@ -9,7 +9,7 @@ export const GET = apiHandler(async () => {
   return json(await getPlatformSettings());
 });
 
-/** PATCH /api/admin/settings — { requireSubscription?, paymentInstructions? } */
+/** PATCH /api/admin/settings — { paymentInstructions?, sponsorshipInfo? } */
 export const PATCH = apiHandler(async (req) => {
   const admin = await requireApiUser(["admin"]);
   return json(await updatePlatformSettings(admin, await parseBody(req, settingsUpdateSchema)));

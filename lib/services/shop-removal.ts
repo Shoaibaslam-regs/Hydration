@@ -1,15 +1,15 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
 import type { Types } from "mongoose";
-import { Order, Product, Review, Shop, User } from "@/lib/db/models";
+import { Order, Review, Shop, User } from "@/lib/db/models";
 import { FINAL_ORDER_STATUSES, ORDER_STATUSES } from "@/lib/orders/status";
 import { shopTag } from "./shops";
 
 /**
  * Permanently delete a shop and its data. Order matters: close the shop first
- * (so no new orders slip in), cancel its unfinished orders, delete products,
- * reviews and favorites, then the shop. Past orders stay, because each order
- * holds its own copy of the shop's products. Used by admins and by owners.
+ * (so no new orders slip in), cancel its unfinished orders, delete reviews
+ * and favorites, then the shop. Past orders stay, because each order holds
+ * its own copy of what was bought. Used by admins and by owners.
  */
 export async function removeShopData(
   shop: { _id: Types.ObjectId; slug: string },
@@ -26,7 +26,6 @@ export async function removeShopData(
     },
   );
   await Promise.all([
-    Product.deleteMany({ shopId: shop._id }),
     Review.deleteMany({ shopId: shop._id }),
     User.updateMany({ favoriteShopIds: shop._id }, { $pull: { favoriteShopIds: shop._id } }),
   ]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { objectIdSchema, productInputSchema, productUpdateSchema, shopInputSchema } from "./shopkeeper";
+import { objectIdSchema, shopInputSchema } from "./shopkeeper";
 
 const shop = {
   name: "Blue Spring",
@@ -8,6 +8,7 @@ const shop = {
   location: { lat: 31.52, lng: 74.35 },
   deliveryRadiusKm: 5,
   deliveryFee: 50,
+  pricePerCan: 200,
   hours: { opensAt: "08:00", closesAt: "22:00" },
 };
 
@@ -29,28 +30,14 @@ describe("shopInputSchema", () => {
     expect(shopInputSchema.safeParse({ ...shop, hours: { opensAt: "18:00", closesAt: "02:00" } }).success).toBe(true);
   });
 
+  it("requires a price per can above 0", () => {
+    expect(shopInputSchema.safeParse({ ...shop, pricePerCan: 0 }).success).toBe(false);
+    expect(shopInputSchema.safeParse({ ...shop, pricePerCan: undefined }).error?.issues[0].message).toBe("Enter your price per can");
+  });
+
   it("rejects out-of-range coordinates and radius", () => {
     expect(shopInputSchema.safeParse({ ...shop, location: { lat: 95, lng: 0 } }).success).toBe(false);
     expect(shopInputSchema.safeParse({ ...shop, deliveryRadiusKm: 100 }).success).toBe(false);
-  });
-});
-
-describe("productInputSchema", () => {
-  const product = { name: "19L can", type: "can", price: 250, stock: 10 };
-
-  it("accepts a valid product", () => {
-    expect(productInputSchema.parse(product)).toMatchObject({ isActive: true, sizeLiters: null });
-  });
-
-  it("rejects bad price and fractional stock", () => {
-    expect(productInputSchema.safeParse({ ...product, price: 0 }).success).toBe(false);
-    expect(productInputSchema.safeParse({ ...product, stock: 1.5 }).success).toBe(false);
-    expect(productInputSchema.safeParse({ ...product, type: "juice" }).success).toBe(false);
-  });
-
-  it("allows partial updates but not empty ones", () => {
-    expect(productUpdateSchema.parse({ stock: 0 })).toEqual({ stock: 0 });
-    expect(productUpdateSchema.safeParse({}).success).toBe(false);
   });
 });
 

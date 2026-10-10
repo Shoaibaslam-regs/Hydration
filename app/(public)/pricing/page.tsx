@@ -4,18 +4,39 @@ import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
 import { formatPrice } from "@/lib/catalog";
-import { PLANS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { cn } from "@/lib/utils";
+
+const plan = PLANS[0];
 
 export const metadata: Metadata = {
   title: "Pricing for shopkeepers",
-  description: "List your water shop on Aqua and reach customers nearby. Simple monthly plans.",
+  description: `List your water shop on Aqua and reach customers nearby. ${TRIAL_DAYS} days free, then ${formatPrice(plan.monthlyPrice)} a month.`,
 };
 
 const steps = [
-  { title: "Register your shop", body: "Add your shop details, location, and products." },
-  { title: "Get approved", body: "Our team reviews and approves your shop." },
-  { title: "Go live", body: "With an active plan, customers nearby can find and order from you." },
+  { title: "Register your shop", body: "Add your shop's location, delivery area and price per can." },
+  { title: "Get approved", body: `Our team reviews your shop. Your ${TRIAL_DAYS}-day free trial starts when it's approved.` },
+  { title: "Take orders", body: "Customers nearby find your shop and order cans. Keep the plan active to stay listed." },
+];
+
+const options = [
+  {
+    name: "Free trial",
+    price: "Free",
+    period: `for ${TRIAL_DAYS} days`,
+    tagline: "Try Aqua with real customers before you pay.",
+    features: ["Starts when your shop is approved", "Everything in the monthly plan", "No payment details needed"],
+    highlighted: false,
+  },
+  {
+    name: plan.name,
+    price: formatPrice(plan.monthlyPrice),
+    period: "/ month",
+    tagline: plan.tagline,
+    features: plan.features,
+    highlighted: true,
+  },
 ];
 
 export default function PricingPage() {
@@ -24,33 +45,23 @@ export default function PricingPage() {
       <div className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold sm:text-4xl">Grow your water business</h1>
         <p className="mt-3 text-lg text-muted-foreground">
-          Get discovered by customers near your shop, take orders online, and track your sales.
+          Get discovered by customers near your shop and take orders online. {TRIAL_DAYS} days free, then one simple monthly price.
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {PLANS.map((plan) => (
-          <Card
-            key={plan.id}
-            className={cn("flex flex-col gap-5 p-6", plan.highlighted && "border-primary ring-2 ring-primary/30")}
-          >
+      <div className="mx-auto grid w-full max-w-3xl gap-6 md:grid-cols-2">
+        {options.map((o) => (
+          <Card key={o.name} className={cn("flex flex-col gap-5 p-6", o.highlighted && "border-primary ring-2 ring-primary/30")}>
             <div>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">{plan.name}</h2>
-                {plan.highlighted && (
-                  <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
-                    Most popular
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
+              <h2 className="text-lg font-semibold">{o.name}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{o.tagline}</p>
             </div>
             <p>
-              <span className="text-3xl font-bold">{formatPrice(plan.monthlyPrice)}</span>
-              <span className="text-muted-foreground"> / month</span>
+              <span className="text-3xl font-bold">{o.price}</span>
+              <span className="text-muted-foreground"> {o.period}</span>
             </p>
             <ul className="flex flex-col gap-2 text-sm">
-              {plan.features.map((f) => (
+              {o.features.map((f) => (
                 <li key={f} className="flex gap-2">
                   <span aria-hidden className="text-success">✓</span>
                   {f}
@@ -58,13 +69,10 @@ export default function PricingPage() {
               ))}
             </ul>
             <Link
-              href={`/register?role=shopkeeper&plan=${plan.id}`}
-              className={buttonClasses({
-                variant: plan.highlighted ? "primary" : "secondary",
-                className: "mt-auto w-full",
-              })}
+              href="/register?role=shopkeeper"
+              className={buttonClasses({ variant: o.highlighted ? "primary" : "secondary", className: "mt-auto w-full" })}
             >
-              Register your shop
+              {o.highlighted ? "Register your shop" : "Start free trial"}
             </Link>
           </Card>
         ))}

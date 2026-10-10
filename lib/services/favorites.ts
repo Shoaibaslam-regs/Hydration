@@ -1,7 +1,6 @@
 import "server-only";
 import { Types } from "mongoose";
 import { ApiError } from "@/lib/api/errors";
-import type { ProductType } from "@/lib/catalog";
 import { connectDB } from "@/lib/db/connect";
 import { Shop, User } from "@/lib/db/models";
 import type { ShopSummary } from "./shops";
@@ -40,8 +39,7 @@ export async function listFavoriteShops(userId: string): Promise<ShopSummary[]> 
       area: s.address.area ?? "",
       city: s.address.city,
       rating: { average: s.rating?.average ?? 0, count: s.rating?.count ?? 0 },
-      productTypes: (s.productTypes ?? []) as ProductType[],
-      minPrice: s.minPrice ?? null,
+      pricePerCan: s.pricePerCan ?? null,
       deliveryFee: s.deliveryFee ?? 0,
       hours: { opensAt: s.hours?.opensAt ?? "", closesAt: s.hours?.closesAt ?? "" },
       imageUrl: s.imageUrl ?? null,

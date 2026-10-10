@@ -27,9 +27,9 @@ describe("buildShopSearchPipeline", () => {
   });
 
   it("applies filters, converting max price to minor units", () => {
-    const [stage] = build({ type: "refill", maxPrice: "150", minRating: "4" });
+    const [stage] = build({ maxPrice: "150", minRating: "4" });
     expect(stage).toMatchObject({
-      $match: { productTypes: "refill", minPrice: { $lte: 15000 }, "rating.average": { $gte: 4 } },
+      $match: { pricePerCan: { $gt: 0, $lte: 15000 }, "rating.average": { $gte: 4 } },
     });
   });
 
@@ -43,10 +43,9 @@ describe("buildShopSearchPipeline", () => {
     expect(facet.$facet.items.slice(0, 2)).toEqual([{ $skip: 20 }, { $limit: 10 }]);
   });
 
-  it("requires an active plan only when asked", () => {
-    expect(build({})[0]).not.toHaveProperty(["$match", "subscription.endsAt"]);
+  it("always requires a price and a running trial or plan", () => {
     const at = new Date("2026-10-10T00:00:00Z");
-    const [stage] = buildShopSearchPipeline(shopSearchSchema.parse({}), { requirePlanActiveAt: at });
-    expect(stage).toMatchObject({ $match: { "subscription.endsAt": { $gt: at } } });
+    const [stage] = buildShopSearchPipeline(shopSearchSchema.parse({}), { now: at });
+    expect(stage).toMatchObject({ $match: { pricePerCan: { $gt: 0 }, "subscription.endsAt": { $gt: at } } });
   });
 });

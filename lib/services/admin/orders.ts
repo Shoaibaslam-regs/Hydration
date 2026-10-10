@@ -10,7 +10,6 @@ import { FINAL_ORDER_STATUSES, type OrderStatus } from "@/lib/orders/status";
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
 import type { AdminOrderListQuery } from "@/lib/validation/admin";
 import { shopTag } from "../shops";
-import { returnStock } from "../stock";
 import { listAdminActions, logAdminAction, type AuditEntry } from "./audit";
 
 export type AdminOrderSummary = {
@@ -128,11 +127,13 @@ export async function adminCancelOrder(admin: SessionUser, orderId: string, reas
 
   const res = await Order.updateOne(
     { _id: order._id, status: from },
-    { $set: { status: "cancelled" }, $push: { statusHistory: { status: "cancelled", at: new Date(), by: "admin", note: reason } } },
+    {
+      $set: { status: "cancelled", customerUnread: true },
+      $push: { statusHistory: { status: "cancelled", at: new Date(), by: "admin", note: reason } },
+    },
   );
   if (res.modifiedCount === 0) throw ApiError.conflict("This order was just updated. Refresh and try again.");
 
-  await returnStock(order.shopId, order.items);
   await logAdminAction(admin, "order.cancel", "order", order._id, reason);
   const shop = await Shop.findById(order.shopId, { slug: 1 }).lean();
   if (shop) revalidateTag(shopTag(shop.slug), { expire: 0 });

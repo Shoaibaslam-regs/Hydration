@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { HeaderNotificationDot } from "@/components/notifications/header-notification-dot";
 import { buttonClasses } from "@/components/ui/button";
 import { DASHBOARD_PATH } from "@/lib/auth/roles";
 import { getSessionUser } from "@/lib/auth/session";
@@ -25,10 +26,11 @@ export async function HeaderAuth({ layout }: { layout: "inline" | "stacked" }) {
 
   return (
     <div className={wrapper}>
-      <Link href={DASHBOARD_PATH[user.role]} className={buttonClasses({ variant: "secondary" })}>
+      <Link href={DASHBOARD_PATH[user.role]} className={buttonClasses({ variant: "secondary", className: "relative" })}>
         <span className={cn("truncate", layout === "inline" && "max-w-32")}>
           {user.role === "customer" ? "My account" : "Dashboard"}
         </span>
+        <HeaderNotificationDot />
       </Link>
       <LogoutButton />
     </div>

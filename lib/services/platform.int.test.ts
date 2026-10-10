@@ -3,13 +3,12 @@ import { describe, expect, it } from "vitest";
 import { rateLimit } from "@/lib/api/rate-limit";
 import { AdminAction, Order, Shop, User } from "@/lib/db/models";
 import { shopSearchSchema } from "@/lib/validation/shops";
-import { createAddress, createProduct, createShop, createUser, HOME, stockOf } from "@/test/fixtures";
+import { createShop, createUser, HOME, placeTestOrder } from "@/test/fixtures";
 import { setupTestDb } from "@/test/db";
 import { adminCancelOrder } from "./admin/orders";
 import { setShopStatus } from "./admin/shops";
 import { updateAdminUser } from "./admin/users";
 import { getSalesAnalytics } from "./analytics";
-import { placeOrder } from "./customer-orders";
 import { createReview } from "./reviews";
 import { updateShopOrderStatus } from "./shop-orders";
 import { searchShops } from "./shops";
@@ -18,17 +17,22 @@ import { authenticate, changePassword, registerUser } from "./users";
 setupTestDb();
 
 describe("geo search", () => {
-  it("finds verified shops with products inside the radius, nearest first", async () => {
+  it("finds approved, priced shops with a running plan inside the radius, nearest first", async () => {
     const near = await createShop(await createUser("shopkeeper"), { name: "Near", location: { lat: 31.521, lng: 74.351 } });
     const mid = await createShop(await createUser("shopkeeper"), { name: "Mid", location: { lat: 31.55, lng: 74.35 } });
     const far = await createShop(await createUser("shopkeeper"), { name: "Far", location: { lat: 31.9, lng: 74.35 } });
-    const pending = await createShop(await createUser("shopkeeper"), { name: "Pending", status: "pending" });
-    await createShop(await createUser("shopkeeper"), { name: "Empty" }); // no products
-    for (const s of [near, mid, far, pending]) await createProduct(s);
+    await createShop(await createUser("shopkeeper"), { name: "Pending", status: "pending" });
+    await createShop(await createUser("shopkeeper"), { name: "No price", pricePerCan: null });
+    await createShop(await createUser("shopkeeper"), { name: "Plan ended", planEndsAt: new Date(Date.now() - 1000) });
+    await createShop(await createUser("shopkeeper"), { name: "Never paid", planEndsAt: null });
+    expect(far).toBeDefined();
 
     const result = await searchShops(shopSearchSchema.parse({ lat: HOME.lat, lng: HOME.lng, radiusKm: 10 }));
     expect(result.items.map((s) => s.name)).toEqual(["Near", "Mid"]);
     expect(result.items[0].distanceKm!).toBeLessThan(result.items[1].distanceKm!);
+    expect(result.items[0].pricePerCan).toBe(25_000);
+    expect(near.id).toBe(result.items[0].id);
+    expect(mid.id).toBe(result.items[1].id);
   });
 });
 
@@ -62,11 +66,8 @@ describe("auth", () => {
 async function deliveredOrder(quantity = 2) {
   const owner = await createUser("shopkeeper");
   const shop = await createShop(owner);
-  const can = await createProduct(shop, { price: 25_000, stock: 10 });
-  const customer = await createUser("customer", "Sara Khan");
-  const addressId = await createAddress(customer);
-  const { id } = await placeOrder(customer, { shopSlug: shop.slug, items: [{ productId: can, quantity }], addressId, contactPhone: "+92 301 0000000", notes: "" });
-  return { shop, can, customer, id };
+  const { id, customer } = await placeTestOrder(shop, quantity, await createUser("customer", "Sara Khan"));
+  return { shop, customer, id };
 }
 
 describe("reviews", () => {
@@ -82,15 +83,30 @@ describe("reviews", () => {
 });
 
 describe("admin", () => {
-  it("verifies, suspends with a reason and audits every change", async () => {
+  it("approves (starting the free trial once), suspends with a reason and audits every change", async () => {
     const admin = await createUser("admin", "Admin");
-    const shop = await createShop(await createUser("shopkeeper"), { status: "pending" });
+    const shop = await createShop(await createUser("shopkeeper"), { status: "pending", planEndsAt: null });
     await expect(setShopStatus(admin, shop.id, "suspended", "x")).rejects.toMatchObject({ status: 409 });
     await expect(setShopStatus(admin, shop.id, "rejected")).rejects.toMatchObject({ status: 400 });
     await setShopStatus(admin, shop.id, "verified");
+    const trial = (await Shop.findById(shop.id).lean())!;
+    expect(trial.subscription).toMatchObject({ planId: "trial" });
+    const days = (trial.subscription!.endsAt.getTime() - Date.now()) / 864e5;
+    expect(days).toBeGreaterThan(2.99);
+    expect(days).toBeLessThanOrEqual(3);
+    await setShopStatus(admin, shop.id, "suspended", "Complaints");
+    // Reinstating doesn't restart the trial.
+    await Shop.updateOne({ _id: shop.id }, { "subscription.endsAt": new Date(Date.now() - 1000) });
+    await setShopStatus(admin, shop.id, "verified");
+    expect((await Shop.findById(shop.id).lean())!.subscription!.endsAt.getTime()).toBeLessThan(Date.now());
     await setShopStatus(admin, shop.id, "suspended", "Complaints");
     expect(await Shop.findById(shop.id).lean()).toMatchObject({ status: "suspended", statusReason: "Complaints" });
-    expect((await AdminAction.find({ targetId: shop.id }).lean()).map((a) => a.action).sort()).toEqual(["shop.suspended", "shop.verified"]);
+    expect((await AdminAction.find({ targetId: shop.id }).lean()).map((a) => a.action).sort()).toEqual([
+      "shop.suspended",
+      "shop.suspended",
+      "shop.verified",
+      "shop.verified",
+    ]);
   });
 
   it("suspends users (revoking sessions) but never the acting admin", async () => {
@@ -102,11 +118,11 @@ describe("admin", () => {
     await expect(updateAdminUser(admin, user.id, { action: "suspend", reason: "again", days: null })).rejects.toMatchObject({ status: 409 });
   });
 
-  it("cancels unfinished orders with stock returned, but not delivered ones", async () => {
+  it("cancels unfinished orders and tells the customer", async () => {
     const admin = await createUser("admin", "Admin");
-    const { shop, can, id } = await deliveredOrder(3);
+    const { shop, id } = await deliveredOrder(3);
     await adminCancelOrder(admin, id, "Dispute");
-    expect(await stockOf(can)).toBe(10);
+    expect(await Order.findById(id).lean()).toMatchObject({ status: "cancelled", customerUnread: true });
     expect((await Order.findById(id).lean())!.statusHistory.at(-1)).toMatchObject({ status: "cancelled", by: "admin", note: "Dispute" });
     await expect(adminCancelOrder(admin, id, "again")).rejects.toMatchObject({ status: 409 });
     expect(shop).toBeDefined();

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { Product, Shop } from "@/lib/db/models";
-import { createAddress, createProduct, createShop, createUser, stockOf } from "@/test/fixtures";
+import { Shop } from "@/lib/db/models";
+import { createShop, createUser, placeTestOrder, statusOf } from "@/test/fixtures";
 import { setupTestDb } from "@/test/db";
-import { placeOrder } from "./customer-orders";
-import { createMyProduct, deleteMyProduct, getMyProduct, listMyProducts, updateMyProduct } from "./my-products";
 import { createMyShop, updateMyShop } from "./my-shop";
 import { getShopOrder, listShopOrders, updateShopOrderStatus } from "./shop-orders";
 
@@ -17,6 +15,7 @@ const shopInput = {
   location: { lat: 31.52, lng: 74.35 },
   deliveryRadiusKm: 5,
   deliveryFee: 50,
+  pricePerCan: 200,
   hours: { opensAt: "08:00", closesAt: "22:00" },
 };
 
@@ -44,33 +43,12 @@ describe("shop registration", () => {
   });
 });
 
-describe("products", () => {
-  it("keeps the search summary in sync", async () => {
+describe("price per can", () => {
+  it("is stored in minor units and required to be listed", async () => {
     const owner = await createUser("shopkeeper");
-    const shop = await createShop(owner);
-    const p = await createMyProduct(shop, { name: "Can", type: "can", description: "", sizeLiters: 19, price: 250, stock: 5, isActive: true });
-    await createMyProduct(shop, { name: "Bottle", type: "bottle", description: "", sizeLiters: null, price: 80, stock: 5, isActive: true });
-    expect(await Shop.findById(shop.id).lean()).toMatchObject({ productTypes: ["bottle", "can"], minPrice: 8_000 });
-    await updateMyProduct(shop, p.id, { isActive: false });
-    expect(await Shop.findById(shop.id).lean()).toMatchObject({ productTypes: ["bottle"] });
-  });
-
-  it("partial updates leave other fields alone", async () => {
-    const owner = await createUser("shopkeeper");
-    const shop = await createShop(owner);
-    const p = await createMyProduct(shop, { name: "Can", type: "can", description: "Filtered", sizeLiters: 19, price: 250, stock: 5, isActive: false });
-    expect(await updateMyProduct(shop, p.id, { stock: 9 })).toMatchObject({ stock: 9, description: "Filtered", sizeLiters: 19, isActive: false, price: 25_000 });
-  });
-
-  it("isolates shops from each other", async () => {
-    const a = await createShop(await createUser("shopkeeper"));
-    const b = await createShop(await createUser("shopkeeper"));
-    const id = await createProduct(a);
-    expect(await getMyProduct(b, id)).toBeNull();
-    await expect(updateMyProduct(b, id, { price: 1 })).rejects.toMatchObject({ status: 404 });
-    await expect(deleteMyProduct(b, id)).rejects.toMatchObject({ status: 404 });
-    expect((await listMyProducts(b, { page: 1, limit: 20 })).total).toBe(0);
-    expect(await Product.countDocuments({ _id: id })).toBe(1);
+    const shop = await createMyShop(owner.id, { ...shopInput, pricePerCan: 120 });
+    expect(shop.pricePerCan).toBe(12_000);
+    expect((await updateMyShop(owner.id, { ...shopInput, pricePerCan: 135.5 })).pricePerCan).toBe(13_550);
   });
 });
 
@@ -78,11 +56,8 @@ describe("shopkeeper order handling", () => {
   async function withOrder(quantity = 2) {
     const owner = await createUser("shopkeeper");
     const shop = await createShop(owner);
-    const can = await createProduct(shop, { stock: 10 });
-    const customer = await createUser("customer");
-    const addressId = await createAddress(customer);
-    const { id } = await placeOrder(customer, { shopSlug: shop.slug, items: [{ productId: can, quantity }], addressId, contactPhone: "+92 301 0000000", notes: "" });
-    return { shop, can, id };
+    const { id } = await placeTestOrder(shop, quantity);
+    return { shop, id };
   }
 
   it("follows the status machine and marks cash orders paid on delivery", async () => {
@@ -94,12 +69,11 @@ describe("shopkeeper order handling", () => {
     expect(order!.history.map((h) => h.status)).toEqual(["pending", "confirmed", "out_for_delivery", "delivered"]);
   });
 
-  it("requires a reason to reject and returns stock", async () => {
-    const { shop, can, id } = await withOrder(3);
-    expect(await stockOf(can)).toBe(7);
+  it("requires a reason to reject", async () => {
+    const { shop, id } = await withOrder(3);
     await expect(updateShopOrderStatus(shop, id, { status: "rejected" })).rejects.toMatchObject({ status: 400 });
     await updateShopOrderStatus(shop, id, { status: "rejected", note: "Out today" });
-    expect(await stockOf(can)).toBe(10);
+    expect(await statusOf(id)).toBe("rejected");
   });
 
   it("lets exactly one of two concurrent updates win", async () => {

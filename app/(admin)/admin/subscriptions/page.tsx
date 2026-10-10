@@ -13,6 +13,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { requireRole } from "@/lib/auth/session";
 import { PAYMENT_METHOD_LABELS, type SubscriptionPaymentStatus } from "@/lib/billing/constants";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
+import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { listAdminActions } from "@/lib/services/admin/audit";
 import { countShopsWithoutActivePlan, listSubscriptionPayments } from "@/lib/services/billing";
 import { getPlatformSettings } from "@/lib/services/platform-settings";
@@ -52,12 +53,13 @@ async function SubscriptionsContent({ searchParams }: { searchParams: PageProps<
   return (
     <>
       <Card className="flex flex-col gap-3">
-        <CardTitle>Settings</CardTitle>
-        <SettingsForm
-          requireSubscription={settings.requireSubscription}
-          paymentInstructions={settings.paymentInstructions}
-          shopsWithoutPlan={withoutPlan}
-        />
+        <CardTitle>Plans</CardTitle>
+        <CardDescription>
+          New shops get a {TRIAL_DAYS}-day free trial when you approve them, then pay {formatPrice(PLANS[0].monthlyPrice)} a month.
+          Shops whose trial or plan has ended are hidden from search until a payment is approved
+          {withoutPlan > 0 && ` (${withoutPlan} approved ${withoutPlan === 1 ? "shop is" : "shops are"} hidden right now)`}.
+        </CardDescription>
+        <SettingsForm paymentInstructions={settings.paymentInstructions} />
       </Card>
 
       <section className="flex flex-col gap-3">

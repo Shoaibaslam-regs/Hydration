@@ -7,7 +7,6 @@ export default function ShopkeeperLayout({ children }: LayoutProps<"/">) {
       nav={[
         { href: "/shop", label: "Overview" },
         { href: "/shop/orders", label: "Orders" },
-        { href: "/shop/products", label: "Products" },
         { href: "/shop/reports", label: "Sales & reports" },
         { href: "/shop/promote", label: "Promote" },
         { href: "/shop/billing", label: "Billing" },

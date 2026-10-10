@@ -6,7 +6,7 @@ import { addMonths, nextPeriodStart, type PaymentMethod, type SubscriptionPaymen
 import type { SessionUser } from "@/lib/auth/session";
 import { connectDB } from "@/lib/db/connect";
 import { Shop, SubscriptionPayment } from "@/lib/db/models";
-import { PLANS, type PlanId } from "@/lib/plans";
+import { PLANS, planName, TRIAL_DAYS, TRIAL_PLAN_ID } from "@/lib/plans";
 import { paginated, skipFor, type Paginated, type Pagination } from "@/lib/validation/pagination";
 import type { PaymentSubmitInput } from "@/lib/validation/billing";
 import { logAdminAction } from "./admin/audit";
@@ -17,7 +17,7 @@ export type PaymentDTO = {
   id: string;
   shopId: string;
   shopName: string;
-  planId: PlanId;
+  planId: string;
   planName: string;
   months: number;
   amount: number;
@@ -32,10 +32,9 @@ export type PaymentDTO = {
   reviewedAt: string | null;
 };
 
-export type ShopSubscription = { planId: PlanId; planName: string; endsAt: string; active: boolean } | null;
+export type ShopSubscription = { planId: string; planName: string; isTrial: boolean; endsAt: string; active: boolean } | null;
 
 const DUPLICATE_KEY = 11000;
-const planName = (id: string) => PLANS.find((p) => p.id === id)?.name ?? id;
 
 type PaymentLean = {
   _id: Types.ObjectId;
@@ -59,7 +58,7 @@ function toDTO(p: PaymentLean, shopName: string): PaymentDTO {
     id: p._id.toString(),
     shopId: p.shopId.toString(),
     shopName,
-    planId: p.planId as PlanId,
+    planId: p.planId,
     planName: planName(p.planId),
     months: p.months,
     amount: p.amount,
@@ -77,7 +76,35 @@ function toDTO(p: PaymentLean, shopName: string): PaymentDTO {
 
 export function toShopSubscription(sub: { planId?: string | null; endsAt?: Date | null } | null | undefined, now: Date): ShopSubscription {
   if (!sub?.planId || !sub.endsAt) return null;
-  return { planId: sub.planId as PlanId, planName: planName(sub.planId), endsAt: sub.endsAt.toISOString(), active: sub.endsAt > now };
+  return {
+    planId: sub.planId,
+    planName: planName(sub.planId),
+    isTrial: sub.planId === TRIAL_PLAN_ID,
+    endsAt: sub.endsAt.toISOString(),
+    active: sub.endsAt > now,
+  };
+}
+
+/**
+ * Give a shop its free trial (TRIAL_DAYS from `now`), once per shop: called
+ * when an admin first approves it. Does nothing if the trial was already used
+ * or a paid plan is running. Returns whether the trial started.
+ */
+export async function startTrial(shopId: Types.ObjectId | string, now = new Date()): Promise<boolean> {
+  const res = await Shop.updateOne(
+    {
+      _id: shopId,
+      trialStartedAt: null,
+      $or: [{ subscription: null }, { "subscription.endsAt": { $lte: now } }],
+    },
+    {
+      $set: {
+        trialStartedAt: now,
+        subscription: { planId: TRIAL_PLAN_ID, endsAt: new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000) },
+      },
+    },
+  );
+  return res.modifiedCount > 0;
 }
 
 /** The shop's plan and recent payments, for its billing page. */
@@ -180,7 +207,7 @@ export async function rejectSubscriptionPayment(admin: SessionUser, paymentId: s
   await logAdminAction(admin, "subscription.rejected", "shop", claimed.shopId, `${claimed.reference}: ${reason}`);
 }
 
-/** Verified, open shops that would disappear from search if plans were required now. */
+/** Approved, open shops hidden from search because their trial or plan has ended. */
 export async function countShopsWithoutActivePlan(): Promise<number> {
   await connectDB();
   return Shop.countDocuments({

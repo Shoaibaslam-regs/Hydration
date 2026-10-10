@@ -13,7 +13,7 @@ import { shopSearchSchema } from "@/lib/validation/shops";
 
 export const metadata: Metadata = {
   title: "Find water shops near you",
-  description: "Search verified water shops by location, product, price, and rating.",
+  description: "Find water shops near you: type your area or use your location, compare prices per can and ratings.",
 };
 
 export default function ShopsPage({ searchParams }: PageProps<"/shops">) {
@@ -41,19 +41,35 @@ async function Results({ searchParams }: { searchParams: PageProps<"/shops">["se
   // Search params are user-controlled; fall back to defaults rather than erroring.
   const parsed = shopSearchSchema.safeParse(firstValues(raw));
   const input = parsed.success ? parsed.data : shopSearchSchema.parse({});
-  const [result, sponsored] = await Promise.all([
+  // Sponsored slots only above the first page, and only for located searches (including a resolved typed area).
+  // With a known location both queries run at once; a typed area must be resolved first.
+  const located = input.lat !== undefined && input.lng !== undefined;
+  const [result, early] = await Promise.all([
     searchShops(input),
-    // Sponsored slots only above the first page, and only for located searches.
-    input.page === 1 ? findSponsoredShops(input) : Promise.resolve([]),
+    located && input.page === 1 ? findSponsoredShops(input) : Promise.resolve(null),
   ]);
+  const sponsored =
+    result.page !== 1 || result.items.length === 0
+      ? []
+      : early && !result.widenedToKm
+        ? early
+        : await findSponsoredShops(result.searched);
 
+  if (result.placeNotFound) {
+    return (
+      <EmptyState
+        title={`We couldn't find “${input.q}”`}
+        description="Try the name of your area or a nearby landmark (for example “Gulshan-e-Bahar” or “Orangi Town”), or use your location."
+      />
+    );
+  }
   if (result.items.length === 0) {
     return (
       <EmptyState
         title="No shops found"
         description={
-          input.lat !== undefined
-            ? "Try a larger distance or fewer filters."
+          result.searched.lat !== undefined
+            ? `No shops deliver within ${result.searched.radiusKm} km yet. Try fewer filters, or check back soon.`
             : "Try a different search or fewer filters."
         }
       />
@@ -68,10 +84,23 @@ async function Results({ searchParams }: { searchParams: PageProps<"/shops">["se
 
   return (
     <section aria-label="Results" className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        {result.total} {result.total === 1 ? "shop" : "shops"} found
-        {!parsed.success && " (some filters were invalid and ignored)"}
-      </p>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm text-muted-foreground">
+          {result.total} {result.total === 1 ? "shop" : "shops"} found
+          {result.place && (
+            <>
+              {" "}
+              near <span className="font-medium text-foreground">{result.place.label || input.q}</span>, nearest first
+            </>
+          )}
+          {!parsed.success && " (some filters were invalid and ignored)"}
+        </p>
+        {result.widenedToKm && (
+          <p className="text-sm text-muted-foreground" role="status">
+            No shops within {input.radiusKm} km, so we searched up to {result.widenedToKm} km.
+          </p>
+        )}
+      </div>
       {sponsored.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Sponsored shops">
           {sponsored.map((shop) => (

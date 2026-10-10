@@ -58,9 +58,6 @@ export function canCustomerMove(from: OrderStatus, to: OrderStatus): boolean {
 /** Customers can review an order once it's delivered. */
 export const REVIEWABLE_STATUS: OrderStatus = "delivered";
 
-/** Moving to these statuses puts the ordered quantities back into stock. */
-export const RESTOCKING_STATUSES: readonly OrderStatus[] = ["rejected", "cancelled"];
-
 /** Statuses that need a reason shown to the customer. */
 export const REASON_REQUIRED: readonly OrderStatus[] = ["rejected", "cancelled"];
 

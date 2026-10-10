@@ -1,5 +1,4 @@
 import { Schema, model, models, type InferSchemaType } from "mongoose";
-import { PRODUCT_TYPES } from "@/lib/catalog";
 import { SLUG_PATTERN } from "@/lib/validation/shops";
 
 export const SHOP_STATUSES = ["pending", "verified", "rejected", "suspended"] as const;
@@ -42,9 +41,13 @@ const shopSchema = new Schema(
     phone: { type: String, required: true, trim: true },
     address: { type: addressSchema, required: true },
     location: { type: pointSchema, required: true },
+    /** Name + full address, normalized by shopSearchText(), for forgiving area/name search. */
+    searchText: { type: String, default: "" },
     deliveryRadiusKm: { type: Number, default: 5, min: 0 },
     /** Minor currency units. */
     deliveryFee: { type: Number, default: 0, min: 0 },
+    /** Price of one 19L can, minor units. Null until the shopkeeper sets it; shops without a price aren't listed. */
+    pricePerCan: { type: Number, default: null, min: 0 },
     hours: {
       opensAt: { type: String, default: "08:00" },
       closesAt: { type: String, default: "22:00" },
@@ -80,23 +83,21 @@ const shopSchema = new Schema(
       default: null,
     },
     /**
-     * Current paid plan, set when an admin approves a subscription payment.
-     * Only enforced while PlatformSettings.requireSubscription is on.
+     * Current plan: the free trial (planId "trial", started on first approval)
+     * or a paid period set when an admin approves a subscription payment.
+     * Shops are listed and take orders only while `endsAt` is in the future.
      */
     subscription: {
       type: new Schema({ planId: { type: String, required: true }, endsAt: { type: Date, required: true } }, { _id: false }),
       default: null,
     },
+    /** When the free trial was granted; set once so re-approval never restarts it. */
+    trialStartedAt: { type: Date, default: null },
     imageUrl: { type: String },
     rating: {
       average: { type: Number, default: 0, min: 0, max: 5 },
       count: { type: Number, default: 0, min: 0 },
     },
-    // Denormalized from active products by refreshShopCatalogSummary() so
-    // search can filter/sort inside $geoNear without a $lookup.
-    productTypes: { type: [String], enum: PRODUCT_TYPES, default: [] },
-    /** Cheapest active product, minor units; null when the shop has none. */
-    minPrice: { type: Number, default: null },
   },
   { timestamps: true },
 );

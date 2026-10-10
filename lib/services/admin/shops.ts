@@ -5,10 +5,10 @@ import { canAdminMoveShop, SHOP_REASON_REQUIRED, type ShopStatus } from "@/lib/a
 import { ApiError } from "@/lib/api/errors";
 import type { SessionUser } from "@/lib/auth/session";
 import { connectDB } from "@/lib/db/connect";
-import { Order, Product, Shop, User } from "@/lib/db/models";
+import { Order, Shop, User } from "@/lib/db/models";
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
 import type { AdminShopListQuery } from "@/lib/validation/admin";
-import { toShopSubscription, type ShopSubscription } from "../billing";
+import { startTrial, toShopSubscription, type ShopSubscription } from "../billing";
 import { removeShopData } from "../shop-removal";
 import { shopTag } from "../shops";
 import { listAdminActions, logAdminAction, type AuditEntry } from "./audit";
@@ -37,7 +37,8 @@ export type AdminShopDetail = AdminShopSummary & {
   statusReason: string;
   verifiedAt: string | null;
   rating: { average: number; count: number };
-  productCount: number;
+  /** Minor units; null until the shopkeeper sets it. */
+  pricePerCan: number | null;
   orderCount: number;
   ownerStatus: "active" | "suspended" | null;
   closure: { by: "shopkeeper" | "admin"; at: string; reason: string } | null;
@@ -122,9 +123,8 @@ export async function getAdminShop(shopId: string): Promise<AdminShopDetail | nu
   await connectDB();
   const s = await Shop.findById(shopId).lean();
   if (!s) return null;
-  const [owner, productCount, orderCount, history] = await Promise.all([
+  const [owner, orderCount, history] = await Promise.all([
     User.findById(s.ownerId, { name: 1, email: 1, status: 1 }).lean(),
-    Product.countDocuments({ shopId: s._id }),
     Order.countDocuments({ shopId: s._id }),
     listAdminActions("shop", shopId),
   ]);
@@ -155,14 +155,17 @@ export async function getAdminShop(shopId: string): Promise<AdminShopDetail | nu
       : null,
     verifiedAt: s.verifiedAt ? s.verifiedAt.toISOString() : null,
     rating: { average: s.rating?.average ?? 0, count: s.rating?.count ?? 0 },
-    productCount,
+    pricePerCan: s.pricePerCan ?? null,
     orderCount,
     ownerStatus: (owner?.status as "active" | "suspended" | undefined) ?? null,
     history,
   };
 }
 
-/** Verify, reject, suspend or reinstate a shop. Updates the public page immediately. */
+/**
+ * Approve, reject, suspend or reinstate a shop. The first approval starts the
+ * free trial. Updates the public page immediately.
+ */
 export async function setShopStatus(
   admin: SessionUser,
   shopId: string,
@@ -183,7 +186,8 @@ export async function setShopStatus(
   const res = await Shop.updateOne({ _id: shop._id, status: from }, { $set });
   if (res.modifiedCount === 0) throw ApiError.conflict("This shop was just updated. Refresh and try again.");
 
-  await logAdminAction(admin, `shop.${to}`, "shop", shop._id, reason ?? "");
+  const trial = to === "verified" && (await startTrial(shop._id));
+  await logAdminAction(admin, `shop.${to}`, "shop", shop._id, trial ? `${reason ?? ""} Free trial started.`.trim() : (reason ?? ""));
   revalidateTag(shopTag(shop.slug), { expire: 0 });
 }
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { MAX_CANS_PER_ORDER } from "@/lib/catalog";
 import { canCustomerMove } from "@/lib/orders/status";
 import { addressInputSchema, orderCreateSchema, reviewInputSchema } from "./customer";
 
-const A = "aaaaaaaaaaaaaaaaaaaaaaaa";
 const B = "bbbbbbbbbbbbbbbbbbbbbbbb";
 
 describe("addressInputSchema", () => {
@@ -19,24 +19,23 @@ describe("addressInputSchema", () => {
 });
 
 describe("orderCreateSchema", () => {
-  const order = { shopSlug: "blue", items: [{ productId: A, quantity: 2 }], addressId: B, contactPhone: "+92 300 1234567" };
+  const order = { shopSlug: "blue", quantity: 2, addressId: B, contactPhone: "+92 300 1234567" };
 
   it("accepts a valid order", () => {
     expect(orderCreateSchema.parse(order).notes).toBe("");
   });
 
-  it("rejects empty orders, duplicates, bad quantities and bad ids", () => {
-    expect(orderCreateSchema.safeParse({ ...order, items: [] }).success).toBe(false);
-    expect(orderCreateSchema.safeParse({ ...order, items: [order.items[0], order.items[0]] }).success).toBe(false);
-    expect(orderCreateSchema.safeParse({ ...order, items: [{ productId: A, quantity: 0 }] }).success).toBe(false);
-    expect(orderCreateSchema.safeParse({ ...order, items: [{ productId: A, quantity: 1.5 }] }).success).toBe(false);
+  it("rejects bad quantities and bad ids", () => {
+    for (const quantity of [0, -1, 1.5, MAX_CANS_PER_ORDER + 1, "2"]) {
+      expect(orderCreateSchema.safeParse({ ...order, quantity }).success).toBe(false);
+    }
     expect(orderCreateSchema.safeParse({ ...order, addressId: "x" }).success).toBe(false);
   });
 
   it("does not accept client-supplied prices", () => {
-    const parsed = orderCreateSchema.parse({ ...order, items: [{ productId: A, quantity: 1, unitPrice: 1 }], total: 1 });
+    const parsed = orderCreateSchema.parse({ ...order, unitPrice: 1, total: 1 });
     expect(parsed).not.toHaveProperty("total");
-    expect(parsed.items[0]).not.toHaveProperty("unitPrice");
+    expect(parsed).not.toHaveProperty("unitPrice");
   });
 });
 

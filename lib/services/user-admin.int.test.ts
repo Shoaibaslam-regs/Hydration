@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { Address, AdminAction, Order, Product, Review, Shop, User } from "@/lib/db/models";
-import { createAddress, createProduct, createShop, createUser, stockOf } from "@/test/fixtures";
+import { Address, AdminAction, Order, Review, Shop, User } from "@/lib/db/models";
+import { createAddress, createShop, createUser } from "@/test/fixtures";
 import { setupTestDb } from "@/test/db";
 import { deleteUserAccount } from "./admin/user-removal";
 import { getAdminUser, listAdminUsers, updateAdminUser } from "./admin/users";
@@ -53,18 +53,16 @@ describe("deleting a user", () => {
     const admin = await createUser("admin", "Admin");
     const owner = await createUser("shopkeeper");
     const shop = await createShop(owner);
-    const can = await createProduct(shop, { stock: 10 });
     const customer = await registerUser({ name: "Sara Khan", email: "sara@t.test", password: "secret123", role: "customer" });
     const session = { id: customer.id, name: customer.name, email: customer.email, role: "customer" as const };
     const addressId = await createAddress(session);
     const order = (q: number) =>
-      placeOrder(session, { shopSlug: shop.slug, items: [{ productId: can, quantity: q }], addressId, contactPhone: "+92 301 0000000", notes: "" });
+      placeOrder(session, { shopSlug: shop.slug, quantity: q, addressId, contactPhone: "+92 301 0000000", notes: "" });
 
     const { id: past } = await order(2);
     for (const status of ["confirmed", "out_for_delivery", "delivered"] as const) await updateShopOrderStatus(shop, past, { status });
     await createReview(session, past, { rating: 5, comment: "Great" });
     const { id: open } = await order(3);
-    expect(await stockOf(can)).toBe(5);
 
     await expect(deleteUserAccount(admin, customer.id, "wrong@t.test", "Asked to be forgotten")).rejects.toMatchObject({ status: 400 });
     await expect(deleteUserAccount(admin, admin.id, admin.email, "x")).rejects.toMatchObject({ status: 403 });
@@ -75,7 +73,6 @@ describe("deleting a user", () => {
     expect(await User.exists({ _id: customer.id })).toBeNull();
     expect(await Address.countDocuments({ userId: customer.id })).toBe(0);
     expect(await Review.countDocuments({ customerId: customer.id })).toBe(0);
-    expect(await stockOf(can)).toBe(8); // the 3 from the open order came back
     expect((await Shop.findById(shop.id).lean())!.rating).toMatchObject({ average: 0, count: 0 });
 
     const kept = await Order.findById(past).lean();
@@ -87,14 +84,12 @@ describe("deleting a user", () => {
     expect(log!.reason).toContain("sara@t.test");
   });
 
-  it("shopkeeper: removes their shop and products first", async () => {
+  it("shopkeeper: removes their shop first", async () => {
     const admin = await createUser("admin", "Admin");
     const owner = await createUser("shopkeeper");
     const shop = await createShop(owner);
-    await createProduct(shop);
     expect(await deleteUserAccount(admin, owner.id, owner.email, "Fake shop")).toMatchObject({ role: "shopkeeper", removedShop: true });
     expect(await Shop.exists({ _id: shop.id })).toBeNull();
-    expect(await Product.countDocuments({ shopId: shop.id })).toBe(0);
     expect(await User.exists({ _id: owner.id })).toBeNull();
   });
 });

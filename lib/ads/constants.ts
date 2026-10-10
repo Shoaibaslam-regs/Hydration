@@ -15,5 +15,3 @@ export const MAX_DEAL_DAYS = 30;
 export const AD_KINDS = ["sponsored", "banner"] as const;
 export type AdKind = (typeof AD_KINDS)[number];
 
-/** The plan whose shops are sponsored automatically ("Priority placement in search"). */
-export const SPONSORED_PLAN_ID = "pro";

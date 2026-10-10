@@ -75,7 +75,7 @@ async function ReportsContent({ searchParams }: { searchParams: PageProps<"/shop
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="flex flex-col gap-3">
-          <CardTitle>Best-selling products</CardTitle>
+          <CardTitle>What sold</CardTitle>
           {a.topProducts.length === 0 ? (
             <CardDescription>No delivered orders in this period yet.</CardDescription>
           ) : (

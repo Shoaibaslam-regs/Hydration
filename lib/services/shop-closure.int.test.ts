@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { AdminAction, Order, Product, Review, Shop, User } from "@/lib/db/models";
+import { AdminAction, Order, Review, Shop, User } from "@/lib/db/models";
 import { shopSearchSchema } from "@/lib/validation/shops";
-import { createAddress, createProduct, createShop, createUser, HOME } from "@/test/fixtures";
+import { createAddress, createShop, createUser, HOME } from "@/test/fixtures";
 import { setupTestDb } from "@/test/db";
 import { adminCloseShop, adminRemoveShop, adminReopenShop } from "./admin/shops";
 import { placeOrder } from "./customer-orders";
@@ -16,12 +16,11 @@ setupTestDb();
 async function setup() {
   const owner = await createUser("shopkeeper");
   const shop = await createShop(owner);
-  const can = await createProduct(shop, { stock: 20 });
   const customer = await createUser("customer", "Sara Khan");
   const addressId = await createAddress(customer);
-  const order = () => placeOrder(customer, { shopSlug: shop.slug, items: [{ productId: can, quantity: 1 }], addressId, contactPhone: "+92 301 0000000", notes: "" });
+  const order = () => placeOrder(customer, { shopSlug: shop.slug, quantity: 1, addressId, contactPhone: "+92 301 0000000", notes: "" });
   const visible = async () => (await searchShops(shopSearchSchema.parse({ lat: HOME.lat, lng: HOME.lng }))).items.some((s) => s.id === shop.id);
-  return { owner, shop, can, customer, order, visible };
+  return { owner, shop, customer, order, visible };
 }
 
 describe("shopkeeper closing their shop", () => {
@@ -75,7 +74,6 @@ describe("admin removing a shop", () => {
     expect(await adminRemoveShop(admin, shop.id, "Fraudulent listing")).toEqual({ cancelledOrders: 1 });
 
     expect(await Shop.exists({ _id: shop.id })).toBeNull();
-    expect(await Product.countDocuments({ shopId: shop.id })).toBe(0);
     expect(await Review.countDocuments({ shopId: shop.id })).toBe(0);
     expect((await User.findById(customer.id).lean())!.favoriteShopIds).toHaveLength(0);
     expect(await Order.findById(delivered).lean()).toMatchObject({ status: "delivered" });
@@ -98,6 +96,7 @@ describe("admin removing a shop", () => {
         location: HOME,
         deliveryRadiusKm: 5,
         deliveryFee: 0,
+        pricePerCan: 150,
         hours: { opensAt: "08:00", closesAt: "22:00" },
       }),
     ).resolves.toMatchObject({ status: "pending" });
@@ -112,7 +111,6 @@ describe("shopkeeper deleting their shop", () => {
     await expect(deleteMyShop(owner.id, "wrong name")).rejects.toMatchObject({ status: 400 });
     expect(await deleteMyShop(owner.id, `  ${shop.name.toUpperCase()} `)).toEqual({ cancelledOrders: 1 });
     expect(await Shop.exists({ _id: shop.id })).toBeNull();
-    expect(await Product.countDocuments({ shopId: shop.id })).toBe(0);
     expect((await Order.findById(pending).lean())!.statusHistory.at(-1)).toMatchObject({ status: "cancelled", by: "shopkeeper" });
     expect(await getMyShop(owner.id)).toBeNull();
     await expect(deleteMyShop(owner.id, shop.name)).rejects.toMatchObject({ status: 404 });

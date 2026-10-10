@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AdminAction } from "@/lib/db/models";
 import { shopSearchSchema } from "@/lib/validation/shops";
-import { createProduct, createShop, createUser, HOME } from "@/test/fixtures";
+import { createShop, createUser, HOME } from "@/test/fixtures";
 import { setupTestDb } from "@/test/db";
 import { getAdminShop, grantVerifiedBadge, revokeVerifiedBadge } from "./admin/shops";
 import { getMyShop } from "./my-shop";
@@ -13,7 +13,6 @@ describe("verified badge", () => {
   it("can be given once and removed with a reason, shows everywhere, and is audited", async () => {
     const owner = await createUser("shopkeeper");
     const shop = await createShop(owner);
-    await createProduct(shop);
     const admin = await createUser("admin", "Admin");
     const badgeInSearch = async () =>
       (await searchShops(shopSearchSchema.parse({ lat: HOME.lat, lng: HOME.lng }))).items.find((s) => s.id === shop.id)?.hasVerifiedBadge;

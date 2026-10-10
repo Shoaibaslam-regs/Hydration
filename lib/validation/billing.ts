@@ -26,7 +26,6 @@ export const adminPaymentDecisionSchema = z.discriminatedUnion("decision", [
 
 export const settingsUpdateSchema = z
   .object({
-    requireSubscription: z.boolean(),
     paymentInstructions: z.string().trim().max(2000),
     sponsorshipInfo: z.string().trim().max(2000),
   })

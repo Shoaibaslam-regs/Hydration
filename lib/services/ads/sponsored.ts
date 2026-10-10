@@ -1,6 +1,6 @@
 import "server-only";
 import { Types } from "mongoose";
-import { SPONSORED_PLAN_ID, SPONSORED_SLOTS, type CampaignStatus } from "@/lib/ads/constants";
+import { SPONSORED_SLOTS, type CampaignStatus } from "@/lib/ads/constants";
 import { dayKey, endOfDayInZone, startOfDayInZone } from "@/lib/ads/dates";
 import { ApiError } from "@/lib/api/errors";
 import type { SessionUser } from "@/lib/auth/session";
@@ -11,7 +11,6 @@ import type { CampaignRequest } from "@/lib/validation/ads";
 import type { ShopSearch } from "@/lib/validation/shops";
 import { logAdminAction } from "../admin/audit";
 import type { MyShop } from "../my-shop";
-import { getPlatformSettings } from "../platform-settings";
 import { buildSponsoredPipeline } from "../shop-search";
 import { toShopSummary, type ShopRow, type ShopSummary } from "../shops";
 
@@ -134,31 +133,19 @@ export async function decideCampaign(
 export async function findSponsoredShops(input: ShopSearch): Promise<ShopSummary[]> {
   await connectDB();
   const now = new Date();
-  const settings = await getPlatformSettings();
   const sponsoredShopIds = await SponsoredCampaign.distinct("shopId", runningNow(now));
   const pipeline = buildSponsoredPipeline(input, {
     sponsoredShopIds: sponsoredShopIds as Types.ObjectId[],
-    sponsoredPlanId: SPONSORED_PLAN_ID,
     slots: SPONSORED_SLOTS,
     now,
-    requirePlanActiveAt: settings.requireSubscription ? now : undefined,
   });
   if (!pipeline) return [];
   const rows = await Shop.aggregate<ShopRow>(pipeline);
   return rows.map(toShopSummary);
 }
 
-/** Whether a shop is sponsored right now, and why. For the shopkeeper's Promote page. */
-export async function sponsorshipStatus(shopId: string): Promise<{ viaPlan: boolean; viaCampaign: boolean }> {
+/** Whether the shop has a running approved campaign. For the shopkeeper's Promote page. */
+export async function isSponsoredNow(shopId: string): Promise<boolean> {
   await connectDB();
-  const now = new Date();
-  const id = new Types.ObjectId(shopId);
-  const [shop, campaign] = await Promise.all([
-    Shop.findById(id, { subscription: 1 }).lean(),
-    SponsoredCampaign.exists({ shopId: id, ...runningNow(now) }),
-  ]);
-  return {
-    viaPlan: shop?.subscription?.planId === SPONSORED_PLAN_ID && (shop.subscription.endsAt ?? new Date(0)) > now,
-    viaCampaign: Boolean(campaign),
-  };
+  return Boolean(await SponsoredCampaign.exists({ shopId: new Types.ObjectId(shopId), ...runningNow(new Date()) }));
 }

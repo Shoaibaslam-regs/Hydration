@@ -8,7 +8,7 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
 import { PAYMENT_METHOD_LABELS } from "@/lib/billing/constants";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
-import { PLANS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { getMyBilling } from "@/lib/services/billing";
 import { getPlatformSettings } from "@/lib/services/platform-settings";
 
@@ -37,24 +37,25 @@ async function BillingContent() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle>Your plan</CardTitle>
           {subscription ? (
-            <Badge tone={subscription.active ? "success" : "danger"}>{subscription.active ? "Active" : "Expired"}</Badge>
+            <Badge tone={subscription.active ? "success" : "danger"}>
+              {subscription.active ? (subscription.isTrial ? "Free trial" : "Active") : "Ended"}
+            </Badge>
           ) : (
-            <Badge>No plan</Badge>
+            <Badge>Trial not started</Badge>
           )}
         </div>
         {subscription ? (
           <p className="text-sm">
             <span className="font-medium">{subscription.planName}</span> ·{" "}
-            {subscription.active ? "paid until " : "ended "}
+            {subscription.active ? (subscription.isTrial ? "ends " : "paid until ") : "ended "}
             {formatDateTime(subscription.endsAt)}
           </p>
         ) : (
-          <CardDescription>You haven&apos;t paid for a plan yet.</CardDescription>
+          <CardDescription>Your {TRIAL_DAYS}-day free trial starts when our team approves your shop.</CardDescription>
         )}
         <CardDescription>
-          {settings.requireSubscription
-            ? "An active plan is required for your shop to appear in search and take orders."
-            : "Plans aren't required yet: your shop is listed either way. Paying now keeps you covered when they are."}
+          Your shop appears in search and takes orders while your free trial or paid plan is running. After the trial, the plan
+          is {formatPrice(PLANS[0].monthlyPrice)} a month. Paying during the trial adds the months after it ends.
         </CardDescription>
       </Card>
 
@@ -70,7 +71,7 @@ async function BillingContent() {
       ) : (
         <Card className="flex flex-col gap-4">
           <div>
-            <CardTitle>{subscription?.active ? "Renew or change plan" : "Pay for a plan"}</CardTitle>
+            <CardTitle>{subscription?.active && !subscription.isTrial ? "Renew your plan" : `Pay for the monthly plan`}</CardTitle>
             <CardDescription>Pay using the details below, then send us the transaction ID so we can confirm it.</CardDescription>
           </div>
           {lastRejected && (
@@ -86,14 +87,8 @@ async function BillingContent() {
               <p className="text-muted-foreground">Payment details haven&apos;t been published yet. Please contact the Aqua team.</p>
             )}
           </div>
-          <PaymentForm defaultPlanId={subscription?.planId} />
-          <ul className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-            {PLANS.map((p) => (
-              <li key={p.id}>
-                <span className="font-medium text-foreground">{p.name}:</span> {p.features.join(", ")}
-              </li>
-            ))}
-          </ul>
+          <PaymentForm />
+          <p className="text-xs text-muted-foreground">Included: {PLANS[0].features.join(", ")}.</p>
         </Card>
       )}
 

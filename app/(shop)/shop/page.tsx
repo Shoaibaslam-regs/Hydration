@@ -10,6 +10,7 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { getMyShop, getMyShopStats } from "@/lib/services/my-shop";
+import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { getMyBilling } from "@/lib/services/billing";
 import { listShopOrders } from "@/lib/services/shop-orders";
 
@@ -55,8 +56,13 @@ async function ShopOverview() {
   const tiles = [
     { label: "New orders", value: stats.newOrders, href: "/shop/orders?status=pending", alert: stats.newOrders > 0 },
     { label: "In progress", value: stats.activeOrders, href: "/shop/orders" },
-    { label: "Active products", value: stats.activeProducts, href: "/shop/products" },
-    { label: "Low stock", value: stats.lowStock, href: "/shop/products?stock=low", alert: stats.lowStock > 0 },
+    { label: "Delivered (30 days)", value: stats.deliveredLast30Days, href: "/shop/reports" },
+    {
+      label: "Price per can",
+      value: shop.pricePerCan ? formatPrice(shop.pricePerCan) : "Not set",
+      href: "/shop/profile",
+      alert: !shop.pricePerCan,
+    },
   ];
 
   return (
@@ -70,7 +76,7 @@ async function ShopOverview() {
           <Link key={t.label} href={t.href} className="group">
             <Card className={t.alert ? "border-warning" : "group-hover:border-primary"}>
               <p className="text-sm text-muted-foreground">{t.label}</p>
-              <p className="mt-1 text-3xl font-bold">{t.value}</p>
+              <p className="mt-1 text-2xl font-bold sm:text-3xl">{t.value}</p>
             </Card>
           </Link>
         ))}
@@ -111,13 +117,15 @@ async function ShopOverview() {
         <div>
           <CardTitle>Plan</CardTitle>
           <CardDescription>
-            {plan
-              ? `${plan.planName} · ${plan.active ? "paid until" : "ended"} ${formatDateTime(plan.endsAt)}`
-              : "You haven't paid for a plan yet."}
+            {!plan
+              ? `Your ${TRIAL_DAYS}-day free trial starts when your shop is approved.`
+              : plan.isTrial
+                ? `Free trial · ${plan.active ? "ends" : "ended"} ${formatDateTime(plan.endsAt)}`
+                : `${plan.planName} · ${plan.active ? "paid until" : "ended"} ${formatDateTime(plan.endsAt)}`}
           </CardDescription>
         </div>
-        <Link href="/shop/billing" className={buttonClasses({ variant: plan?.active ? "secondary" : "primary", size: "sm" })}>
-          {plan?.active ? "Billing" : "Pay for a plan"}
+        <Link href="/shop/billing" className={buttonClasses({ variant: plan?.active && !plan.isTrial ? "secondary" : "primary", size: "sm" })}>
+          {plan?.active && !plan.isTrial ? "Billing" : `Pay ${formatPrice(PLANS[0].monthlyPrice)}/month`}
         </Link>
       </Card>
     </div>

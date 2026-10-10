@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
-import { CURRENCY, fromMinorUnits } from "@/lib/catalog";
+import { CAN_LABEL, CURRENCY, fromMinorUnits } from "@/lib/catalog";
 import type { LatLng } from "@/lib/geo";
 import type { MyShop } from "@/lib/services/my-shop";
 
@@ -49,6 +49,7 @@ export function ShopProfileForm({ shop }: { shop: MyShop | null }) {
         location,
         deliveryRadiusKm: num(str("deliveryRadiusKm")),
         deliveryFee: num(str("deliveryFee")),
+        pricePerCan: num(str("pricePerCan")),
         hours: { opensAt: str("opensAt"), closesAt: str("closesAt") },
       },
     });
@@ -111,8 +112,27 @@ export function ShopProfileForm({ shop }: { shop: MyShop | null }) {
       </Card>
 
       <Card className="flex flex-col gap-4">
-        <CardTitle>Delivery & hours</CardTitle>
+        <CardTitle>Price, delivery & hours</CardTitle>
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label={`Price per ${CAN_LABEL} (${CURRENCY})`}
+            hint="Customers order by the can at this price."
+            error={err("pricePerCan")}
+            className="sm:col-span-2"
+          >
+            {(p) => (
+              <Input
+                {...p}
+                name="pricePerCan"
+                type="number"
+                min={1}
+                step="any"
+                inputMode="decimal"
+                defaultValue={shop?.pricePerCan ? fromMinorUnits(shop.pricePerCan) : ""}
+                required
+              />
+            )}
+          </Field>
           <Field label="Delivery radius (km)" error={err("deliveryRadiusKm")}>
             {(p) => (
               <Input {...p} name="deliveryRadiusKm" type="number" min={0.5} max={50} step={0.5} defaultValue={shop?.deliveryRadiusKm ?? 5} />

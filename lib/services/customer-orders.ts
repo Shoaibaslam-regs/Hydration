@@ -4,16 +4,15 @@ import { revalidateTag } from "next/cache";
 import { Types } from "mongoose";
 import { ApiError } from "@/lib/api/errors";
 import type { SessionUser } from "@/lib/auth/session";
-import type { ProductType } from "@/lib/catalog";
+import { CAN_LABEL, CAN_SIZE_LITERS, type ProductType } from "@/lib/catalog";
 import { connectDB } from "@/lib/db/connect";
-import { Address, Order, Product, Review, Shop, User } from "@/lib/db/models";
+import { Address, Order, Review, Shop, User } from "@/lib/db/models";
 import { distanceKm } from "@/lib/geo";
 import { canCustomerMove, REVIEWABLE_STATUS, type OrderStatus } from "@/lib/orders/status";
 import { paginated, skipFor, type Paginated, type Pagination } from "@/lib/validation/pagination";
 import type { OrderCreateInput } from "@/lib/validation/customer";
-import { getPlatformSettings, hasActivePlan } from "./platform-settings";
+import { hasActivePlan } from "./platform-settings";
 import { shopTag } from "./shops";
-import { returnStock } from "./stock";
 
 export type CustomerOrderSummary = {
   id: string;
@@ -23,6 +22,8 @@ export type CustomerOrderSummary = {
   itemCount: number;
   shop: { name: string; slug: string };
   createdAt: string;
+  /** The shop changed the status since the customer last opened this order. */
+  unread: boolean;
 };
 
 export type CustomerOrderDetail = CustomerOrderSummary & {
@@ -49,25 +50,19 @@ function newOrderNumber(): string {
   return `AQ-${s}`;
 }
 
-type Reserved = { productId: Types.ObjectId; quantity: number };
-
-
 /**
- * Place an order. Prices, delivery fee and availability always come from the
- * database, never the client. Stock is reserved item by item with a
- * conditional decrement; if any item can't be reserved, earlier reservations
- * are released and nothing is created.
+ * Place an order for some 19L cans. The price, delivery fee and whether the
+ * shop can take orders always come from the database, never the client.
  */
 export async function placeOrder(user: SessionUser, input: OrderCreateInput): Promise<{ id: string; orderNumber: string }> {
   await connectDB();
   const customerId = new Types.ObjectId(user.id);
+  const now = new Date();
 
   const shop = await Shop.findOne({ slug: input.shopSlug, status: "verified" }).lean();
   if (!shop) throw ApiError.notFound("This shop isn't taking orders right now");
   if (shop.closure) throw ApiError.conflict(`${shop.name} is closed right now and isn't taking new orders.`);
-  if ((await getPlatformSettings()).requireSubscription && !hasActivePlan(shop, new Date())) {
-    throw ApiError.conflict(`${shop.name} isn't taking orders right now.`);
-  }
+  if (!hasActivePlan(shop, now) || !shop.pricePerCan) throw ApiError.conflict(`${shop.name} isn't taking orders right now.`);
 
   const address = await Address.findOne({ _id: input.addressId, userId: customerId }).lean();
   if (!address) throw ApiError.badRequest("Choose a delivery address", { fieldErrors: { addressId: ["Choose a delivery address"] } });
@@ -82,78 +77,40 @@ export async function placeOrder(user: SessionUser, input: OrderCreateInput): Pr
     );
   }
 
-  const ids = input.items.map((i) => new Types.ObjectId(i.productId));
-  const products = await Product.find({ _id: { $in: ids }, shopId: shop._id, isActive: true }).lean();
-  const byId = new Map(products.map((p) => [p._id.toString(), p]));
-  if (products.length !== input.items.length) {
-    throw ApiError.conflict("Some items are no longer available. Please review your order.");
-  }
-
-  const reserved: Reserved[] = [];
-  for (const item of input.items) {
-    const res = await Product.updateOne(
-      { _id: item.productId, shopId: shop._id, isActive: true, stock: { $gte: item.quantity } },
-      { $inc: { stock: -item.quantity } },
-    );
-    if (res.modifiedCount === 0) {
-      await returnStock(shop._id, reserved);
-      const p = byId.get(item.productId)!;
-      const left = (await Product.findById(p._id, { stock: 1 }).lean())?.stock ?? 0;
-      throw ApiError.conflict(
-        left === 0 ? `${p.name} is out of stock` : `Only ${left} × ${p.name} left. Please lower the quantity.`,
-      );
-    }
-    reserved.push({ productId: new Types.ObjectId(item.productId), quantity: item.quantity });
-  }
-
-  const items = input.items.map((item) => {
-    const p = byId.get(item.productId)!;
-    return {
-      productId: p._id,
-      name: p.name,
-      type: p.type,
-      sizeLiters: p.sizeLiters ?? undefined,
-      unitPrice: p.price,
-      quantity: item.quantity,
-      lineTotal: p.price * item.quantity,
-    };
-  });
-  const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+  const unitPrice = shop.pricePerCan;
+  const items = [
+    { name: CAN_LABEL, type: "can", sizeLiters: CAN_SIZE_LITERS, unitPrice, quantity: input.quantity, lineTotal: unitPrice * input.quantity },
+  ];
+  const subtotal = items[0].lineTotal;
   const deliveryFee = shop.deliveryFee ?? 0;
   const contactName = (await User.findById(customerId, { name: 1 }).lean())?.name ?? user.name;
 
-  try {
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
-        const order = await Order.create({
-          orderNumber: newOrderNumber(),
-          customerId,
-          shopId: shop._id,
-          items,
-          subtotal,
-          deliveryFee,
-          total: subtotal + deliveryFee,
-          deliveryAddress: { line1: address.line1, area: address.area ?? "", city: address.city, notes: input.notes || address.notes || "" },
-          contactName,
-          contactPhone: input.contactPhone,
-          status: "pending",
-          statusHistory: [{ status: "pending", at: new Date(), by: "customer" }],
-          payment: { method: "cash_on_delivery", status: "unpaid" },
-        });
-        revalidateTag(shopTag(shop.slug), { expire: 0 });
-        return { id: order._id.toString(), orderNumber: order.orderNumber };
-      } catch (err) {
-        // Retry only on an order-number collision.
-        if ((err as { code?: number; keyPattern?: Record<string, unknown> }).keyPattern?.orderNumber) continue;
-        if ((err as { code?: number }).code === DUPLICATE_KEY) continue;
-        throw err;
-      }
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const order = await Order.create({
+        orderNumber: newOrderNumber(),
+        customerId,
+        shopId: shop._id,
+        items,
+        subtotal,
+        deliveryFee,
+        total: subtotal + deliveryFee,
+        deliveryAddress: { line1: address.line1, area: address.area ?? "", city: address.city, notes: input.notes || address.notes || "" },
+        contactName,
+        contactPhone: input.contactPhone,
+        status: "pending",
+        statusHistory: [{ status: "pending", at: now, by: "customer" }],
+        payment: { method: "cash_on_delivery", status: "unpaid" },
+      });
+      revalidateTag(shopTag(shop.slug), { expire: 0 });
+      return { id: order._id.toString(), orderNumber: order.orderNumber };
+    } catch (err) {
+      // Retry only on an order-number collision.
+      if ((err as { code?: number }).code === DUPLICATE_KEY) continue;
+      throw err;
     }
-    throw new Error("Could not generate a unique order number");
-  } catch (err) {
-    await returnStock(shop._id, reserved);
-    throw err;
   }
+  throw new Error("Could not generate a unique order number");
 }
 
 type OrderLean = {
@@ -164,10 +121,11 @@ type OrderLean = {
   total: number;
   subtotal: number;
   deliveryFee: number;
-  items: { name: string; type: string; sizeLiters?: number | null; unitPrice: number; quantity: number; lineTotal: number; productId: Types.ObjectId }[];
+  items: { name: string; type: string; sizeLiters?: number | null; unitPrice: number; quantity: number; lineTotal: number }[];
   deliveryAddress: { line1: string; area?: string | null; city: string; notes?: string | null };
   contactPhone: string;
   payment: { method: string; status: string };
+  customerUnread?: boolean | null;
   statusHistory: { status: string; at: Date; note?: string | null }[];
   createdAt: Date;
 };
@@ -186,6 +144,7 @@ function toSummary(o: OrderLean, shop: { name: string; slug: string } | undefine
     itemCount: o.items.reduce((n, i) => n + i.quantity, 0),
     shop: { name: shop?.name ?? "Shop", slug: shop?.slug ?? "" },
     createdAt: o.createdAt.toISOString(),
+    unread: Boolean(o.customerUnread),
   };
 }
 
@@ -210,6 +169,8 @@ export async function getCustomerOrder(userId: string, orderId: string): Promise
   await connectDB();
   const o = (await Order.findOne({ _id: orderId, customerId: new Types.ObjectId(userId) }).lean()) as unknown as OrderLean | null;
   if (!o) return null;
+  // Opening the order clears its notification.
+  if (o.customerUnread) await Order.updateOne({ _id: o._id }, { $set: { customerUnread: false } });
   const [shops, review] = await Promise.all([shopNames([o.shopId]), Review.findOne({ orderId: o._id }).lean()]);
   const shop = shops.get(o.shopId.toString());
   const status = o.status as OrderStatus;
@@ -241,7 +202,7 @@ export async function getCustomerOrder(userId: string, orderId: string): Promise
   };
 }
 
-/** Customers can cancel only while the order is still pending. Stock is returned. */
+/** Customers can cancel only while the order is still pending. */
 export async function cancelCustomerOrder(userId: string, orderId: string, note?: string): Promise<void> {
   await connectDB();
   const updated = await Order.findOneAndUpdate(
@@ -257,10 +218,6 @@ export async function cancelCustomerOrder(userId: string, orderId: string, note?
     if (!exists) throw ApiError.notFound("Order not found");
     throw ApiError.conflict("This order can no longer be cancelled. Please contact the shop.");
   }
-  await returnStock(
-    updated.shopId,
-    updated.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-  );
   const shop = await Shop.findById(updated.shopId, { slug: 1 }).lean();
   if (shop) revalidateTag(shopTag(shop.slug), { expire: 0 });
 }

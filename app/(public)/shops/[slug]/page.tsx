@@ -10,9 +10,7 @@ import { Rating } from "@/components/shops/rating";
 import { VerifiedBadge } from "@/components/shops/verified-badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
-import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
-import { getPlatformSettings } from "@/lib/services/platform-settings";
 import { getShopBySlug, type ShopDetail } from "@/lib/services/shops";
 import { shopSlugSchema } from "@/lib/validation/shops";
 
@@ -48,8 +46,7 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
   if (!shop) notFound();
   // The plan check compares with the current time, so render it per request.
   await connection();
-  const settings = await getPlatformSettings();
-  const planInactive = settings.requireSubscription && !(shop.planEndsAt && new Date(shop.planEndsAt) > new Date());
+  const notTakingOrders = !shop.pricePerCan || !(shop.planEndsAt && new Date(shop.planEndsAt) > new Date());
 
   const address = [shop.addressLine1, shop.area, shop.city].filter(Boolean).join(", ");
 
@@ -90,11 +87,11 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
           </section>
         )}
 
-        <section aria-labelledby="products-heading" className="flex flex-col gap-3">
-          <h2 id="products-heading" className="text-lg font-semibold">
+        <section aria-labelledby="order-heading" className="flex flex-col gap-3">
+          <h2 id="order-heading" className="text-lg font-semibold">
             Order water
           </h2>
-          {planInactive && !shop.closure ? (
+          {notTakingOrders && !shop.closure ? (
             <div role="status" className="rounded-xl border border-warning/50 bg-warning/10 p-4">
               <p className="font-semibold">This shop isn&apos;t taking orders right now</p>
               <p className="text-sm text-muted-foreground">Save it to find it again later, or find another shop nearby.</p>
@@ -108,10 +105,8 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
                   : "It isn't taking new orders at the moment. Save it to find it again later, or find another shop nearby."}
               </p>
             </div>
-          ) : shop.products.length === 0 ? (
-            <EmptyState title="No products listed yet" />
           ) : (
-            <OrderBuilder shopSlug={shop.slug} products={shop.products} deliveryFee={shop.deliveryFee} />
+            <OrderBuilder shopSlug={shop.slug} pricePerCan={shop.pricePerCan!} deliveryFee={shop.deliveryFee} />
           )}
         </section>
 

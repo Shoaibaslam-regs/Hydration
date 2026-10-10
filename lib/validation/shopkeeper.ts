@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { PRODUCT_TYPES } from "@/lib/catalog";
 import { ORDER_STATUSES } from "@/lib/orders/status";
 import { paginationSchema } from "./pagination";
 
@@ -24,44 +23,13 @@ export const shopInputSchema = z.object({
   deliveryRadiusKm: z.number({ error: "Enter a delivery radius" }).min(0.5, "At least 0.5 km").max(50, "At most 50 km"),
   /** Major currency units. */
   deliveryFee: z.number({ error: "Enter a delivery fee (0 for free)" }).min(0).max(100_000),
+  /** Major currency units: price of one 19L can. */
+  pricePerCan: z.number({ error: "Enter your price per can" }).positive("Price must be more than 0").max(100_000),
   hours: z
     .object({ opensAt: time, closesAt: time })
     .refine((h) => h.opensAt !== h.closesAt, { message: "Opening and closing times must differ", path: ["closesAt"] }),
 });
 export type ShopInput = z.infer<typeof shopInputSchema>;
-
-// Fields without defaults, so partial updates only touch what was sent.
-const productFields = {
-  name: z.string().trim().min(2, "Enter a product name").max(120),
-  type: z.enum(PRODUCT_TYPES),
-  description: z.string().trim().max(1000),
-  sizeLiters: z.number({ error: "Enter a size" }).positive().max(1000).nullable(),
-  /** Major currency units. */
-  price: z.number({ error: "Enter a price" }).positive("Price must be more than 0").max(1_000_000),
-  stock: z.number({ error: "Enter the units in stock" }).int("Stock must be a whole number").min(0).max(1_000_000),
-  isActive: z.boolean(),
-};
-
-export const productInputSchema = z.object({
-  ...productFields,
-  description: productFields.description.default(""),
-  sizeLiters: productFields.sizeLiters.default(null),
-  isActive: productFields.isActive.default(true),
-});
-export type ProductInput = z.infer<typeof productInputSchema>;
-
-/** PATCH body: any subset of fields; missing fields are left unchanged. */
-export const productUpdateSchema = z
-  .object(productFields)
-  .partial()
-  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
-export type ProductUpdate = z.infer<typeof productUpdateSchema>;
-
-export const productListQuerySchema = paginationSchema.extend({
-  q: z.preprocess((v) => (v === "" ? undefined : v), z.string().trim().max(100).optional()),
-  stock: z.preprocess((v) => (v === "" ? undefined : v), z.enum(["low", "out"]).optional()),
-});
-export type ProductListQuery = z.infer<typeof productListQuerySchema>;
 
 export const orderListQuerySchema = paginationSchema.extend({
   status: z.preprocess((v) => (v === "" ? undefined : v), z.enum(ORDER_STATUSES).optional()),

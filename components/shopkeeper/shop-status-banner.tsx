@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { MyShop } from "@/lib/services/my-shop";
 import { VerifiedBadge } from "@/components/shops/verified-badge";
+import { formatDateTime } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 
 const CONTENT: Record<MyShop["status"], { title: string; body: string; tone: string }> = {
   pending: {
     title: "Waiting for approval",
-    body: "Our team is reviewing your shop. You can add products now; customers will see your shop once it's approved.",
+    body: "Our team is reviewing your shop. Once it's approved, customers can find it and your free trial starts.",
     tone: "border-warning/40 bg-warning/10",
   },
   verified: {
@@ -32,8 +33,25 @@ const CLOSED = {
   tone: "border-warning/40 bg-warning/10",
 };
 
+const NO_PRICE = {
+  title: "Your shop is approved but hidden",
+  body: "Set your price per can in your shop profile so customers can find you and order.",
+  tone: "border-warning/40 bg-warning/10",
+};
+
+const PLAN_ENDED = {
+  title: "Your shop is hidden: your plan has ended",
+  body: "Customers can't find your shop or order until you pay for the monthly plan. Existing orders are still in your list.",
+  tone: "border-danger/40 bg-danger/10",
+};
+
 export function ShopStatusBanner({ shop }: { shop: MyShop }) {
-  const c = shop.status === "verified" && shop.closure ? CLOSED : CONTENT[shop.status];
+  const approvedOpen = shop.status === "verified" && !shop.closure;
+  const noPrice = approvedOpen && !shop.pricePerCan;
+  const planEnded = approvedOpen && !noPrice && !shop.plan?.active;
+  const hidden = noPrice || planEnded;
+  const c =
+    shop.status === "verified" && shop.closure ? CLOSED : noPrice ? NO_PRICE : planEnded ? PLAN_ENDED : CONTENT[shop.status];
   return (
     <div role="status" className={cn("flex flex-col gap-1 rounded-xl border p-4", c.tone)}>
       <p className="font-semibold">{c.title}</p>
@@ -48,7 +66,20 @@ export function ShopStatusBanner({ shop }: { shop: MyShop }) {
           <span className="font-medium">Reason:</span> {shop.statusReason}
         </p>
       )}
-      {shop.status === "verified" && !shop.closure && (
+      {noPrice && (
+        <Link href="/shop/profile" className="text-sm font-medium text-primary hover:underline">
+          Set your price →
+        </Link>
+      )}
+      {planEnded && (
+        <Link href="/shop/billing" className="text-sm font-medium text-primary hover:underline">
+          Pay for your plan →
+        </Link>
+      )}
+      {approvedOpen && !hidden && shop.plan?.isTrial && (
+        <p className="text-sm">Free trial until {formatDateTime(shop.plan.endsAt)}.</p>
+      )}
+      {shop.status === "verified" && !shop.closure && !hidden && (
         <Link href={`/shops/${shop.slug}`} className="text-sm font-medium text-primary hover:underline">
           View your public page →
         </Link>

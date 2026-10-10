@@ -11,14 +11,13 @@ import { formatPrice } from "@/lib/catalog";
 import { PLANS } from "@/lib/plans";
 
 /** Report a subscription payment made outside the site. The server recomputes the amount. */
-export function PaymentForm({ defaultPlanId }: { defaultPlanId?: string }) {
+export function PaymentForm() {
   const router = useRouter();
-  const [planId, setPlanId] = useState(defaultPlanId ?? PLANS.find((p) => p.highlighted)?.id ?? PLANS[0].id);
+  const plan = PLANS[0];
   const [months, setMonths] = useState<number>(1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[] | undefined>>({});
-  const plan = PLANS.find((p) => p.id === planId)!;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -26,7 +25,7 @@ export function PaymentForm({ defaultPlanId }: { defaultPlanId?: string }) {
     setPending(true);
     setError(null);
     const result = await apiRequest("/api/shopkeeper/billing", {
-      body: { planId, months, method: f.get("method"), reference: f.get("reference"), note: f.get("note") },
+      body: { planId: plan.id, months, method: f.get("method"), reference: f.get("reference"), note: f.get("note") },
     });
     setPending(false);
     if (!result.ok) {
@@ -41,18 +40,7 @@ export function PaymentForm({ defaultPlanId }: { defaultPlanId?: string }) {
     <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
       <FormError message={error} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Plan" error={fieldErrors.planId?.[0]}>
-          {(p) => (
-            <Select {...p} value={planId} onChange={(e) => setPlanId(e.target.value)}>
-              {PLANS.map((pl) => (
-                <option key={pl.id} value={pl.id}>
-                  {pl.name} — {formatPrice(pl.monthlyPrice)} / month
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
-        <Field label="Months" error={fieldErrors.months?.[0]}>
+        <Field label={`Months (${formatPrice(plan.monthlyPrice)} each)`} error={fieldErrors.months?.[0] ?? fieldErrors.planId?.[0]}>
           {(p) => (
             <Select {...p} value={months} onChange={(e) => setMonths(Number(e.target.value))}>
               {BILLING_MONTH_OPTIONS.map((m) => (

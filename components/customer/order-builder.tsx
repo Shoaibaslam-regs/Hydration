@@ -2,91 +2,56 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatPrice, PRODUCT_TYPE_LABELS } from "@/lib/catalog";
-import { encodeCart, MAX_LINE_QUANTITY } from "@/lib/orders/cart";
-import type { ProductSummary } from "@/lib/services/shops";
+import { CAN_LABEL, formatPrice, MAX_CANS_PER_ORDER } from "@/lib/catalog";
 
-/** Product list with quantity steppers; "Checkout" carries the cart in the URL. */
-export function OrderBuilder({
-  shopSlug,
-  products,
-  deliveryFee,
-}: {
-  shopSlug: string;
-  products: ProductSummary[];
-  deliveryFee: number;
-}) {
+/** How many 19L cans to order; "Order now" carries the count to checkout in the URL. */
+export function OrderBuilder({ shopSlug, pricePerCan, deliveryFee }: { shopSlug: string; pricePerCan: number; deliveryFee: number }) {
   const router = useRouter();
-  const [qty, setQty] = useState<Record<string, number>>({});
-
-  const set = (id: string, n: number) => setQty((q) => ({ ...q, [id]: Math.max(0, Math.min(MAX_LINE_QUANTITY, n)) }));
-  const lines = products.filter((p) => (qty[p.id] ?? 0) > 0);
-  const subtotal = lines.reduce((sum, p) => sum + p.price * qty[p.id], 0);
-  const count = lines.reduce((n, p) => n + qty[p.id], 0);
-
-  function checkout() {
-    const items = encodeCart(lines.map((p) => ({ productId: p.id, quantity: qty[p.id] })));
-    router.push(`/account/checkout?shop=${encodeURIComponent(shopSlug)}&items=${items}`);
-  }
+  const [cans, setCans] = useState(1);
+  const set = (n: number) => setCans(Math.max(1, Math.min(MAX_CANS_PER_ORDER, n)));
+  const subtotal = pricePerCan * cans;
 
   return (
-    <div className="flex flex-col gap-4">
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {products.map((p) => {
-          const n = qty[p.id] ?? 0;
-          return (
-            <li key={p.id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-start justify-between gap-2">
-                <p className="font-semibold">{p.name}</p>
-                <span className="shrink-0 font-semibold">{formatPrice(p.price)}</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <Badge tone="info">{PRODUCT_TYPE_LABELS[p.type]}</Badge>
-                {p.sizeLiters !== null && <Badge>{p.sizeLiters} L</Badge>}
-                {!p.inStock && <Badge tone="danger">Out of stock</Badge>}
-              </div>
-              {p.description && <p className="text-sm text-muted-foreground">{p.description}</p>}
-              <div className="mt-auto flex items-center justify-end gap-2" role="group" aria-label={`Quantity of ${p.name}`}>
-                {n > 0 ? (
-                  <>
-                    <Button variant="secondary" size="sm" onClick={() => set(p.id, n - 1)} aria-label={`Remove one ${p.name}`}>
-                      −
-                    </Button>
-                    <span className="w-8 text-center font-semibold tabular-nums" aria-live="polite">
-                      {n}
-                    </span>
-                    <Button variant="secondary" size="sm" onClick={() => set(p.id, n + 1)} aria-label={`Add one ${p.name}`}>
-                      +
-                    </Button>
-                  </>
-                ) : (
-                  <Button size="sm" onClick={() => set(p.id, 1)} disabled={!p.inStock}>
-                    Add
-                  </Button>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      {count > 0 && (
-        <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary bg-card p-4 shadow-lg">
-          <div className="text-sm">
-            <p className="font-semibold">
-              {count} {count === 1 ? "item" : "items"} · {formatPrice(subtotal)}
-            </p>
-            <p className="text-muted-foreground">
-              + {deliveryFee === 0 ? "free delivery" : `${formatPrice(deliveryFee)} delivery`}
-            </p>
-          </div>
-          <Button size="lg" onClick={checkout}>
-            Checkout
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold">{CAN_LABEL}</p>
+        <p>
+          <span className="text-xl font-bold">{formatPrice(pricePerCan)}</span>
+          <span className="text-sm text-muted-foreground"> per can</span>
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-2" role="group" aria-label="Number of cans">
+          <Button variant="secondary" onClick={() => set(cans - 1)} disabled={cans <= 1} aria-label="One can fewer">
+            −
           </Button>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={MAX_CANS_PER_ORDER}
+            value={cans}
+            onChange={(e) => set(Number(e.target.value) || 1)}
+            aria-label="Cans"
+            className="h-10 w-16 rounded-lg border border-border bg-background text-center text-lg font-semibold tabular-nums"
+          />
+          <Button variant="secondary" onClick={() => set(cans + 1)} disabled={cans >= MAX_CANS_PER_ORDER} aria-label="One can more">
+            +
+          </Button>
+          <span className="text-sm text-muted-foreground">{cans === 1 ? "can" : "cans"}</span>
         </div>
-      )}
+        <div className="text-right text-sm" aria-live="polite">
+          <p className="text-lg font-semibold">{formatPrice(subtotal + deliveryFee)}</p>
+          <p className="text-muted-foreground">
+            {formatPrice(subtotal)} + {deliveryFee === 0 ? "free delivery" : `${formatPrice(deliveryFee)} delivery`}
+          </p>
+        </div>
+      </div>
+      <Button size="lg" onClick={() => router.push(`/account/checkout?shop=${encodeURIComponent(shopSlug)}&cans=${cans}`)}>
+        Order {cans} {cans === 1 ? "can" : "cans"}
+      </Button>
+      <p className="text-xs text-muted-foreground">Pay cash on delivery.</p>
     </div>
   );
 }

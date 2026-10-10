@@ -4,8 +4,6 @@ import { Schema, model, models, type InferSchemaType } from "mongoose";
 const platformSettingsSchema = new Schema(
   {
     _id: { type: String, default: "platform" },
-    /** When on, shops without an active plan are hidden from search and can't take orders. */
-    requireSubscription: { type: Boolean, default: false },
     /** Where shopkeepers send subscription payments (account numbers etc.), shown on their billing page. */
     paymentInstructions: { type: String, default: "", maxlength: 2000 },
     /** Sponsorship price and how to pay, shown on shopkeepers' Promote page. */

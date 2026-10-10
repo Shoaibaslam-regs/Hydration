@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_CART_LINES, MAX_LINE_QUANTITY } from "@/lib/orders/cart";
+import { MAX_CANS_PER_ORDER } from "@/lib/catalog";
 import { ORDER_STATUSES } from "@/lib/orders/status";
 import { paginationSchema } from "./pagination";
 import { objectIdSchema } from "./shopkeeper";
@@ -27,16 +27,8 @@ export type AddressInput = z.infer<typeof addressInputSchema>;
 
 export const orderCreateSchema = z.object({
   shopSlug: z.string().max(140),
-  items: z
-    .array(
-      z.object({
-        productId: objectIdSchema,
-        quantity: z.number().int().min(1).max(MAX_LINE_QUANTITY),
-      }),
-    )
-    .min(1, "Your order is empty")
-    .max(MAX_CART_LINES)
-    .refine((items) => new Set(items.map((i) => i.productId)).size === items.length, "Duplicate products in order"),
+  /** Number of 19L cans. */
+  quantity: z.number({ error: "Choose how many cans" }).int("Choose a whole number of cans").min(1, "Order at least 1 can").max(MAX_CANS_PER_ORDER, `At most ${MAX_CANS_PER_ORDER} cans per order`),
   addressId: objectIdSchema,
   contactPhone: phone,
   notes: z.string().trim().max(300).default(""),

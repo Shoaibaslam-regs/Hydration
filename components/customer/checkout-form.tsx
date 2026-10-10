@@ -15,13 +15,14 @@ import { cn } from "@/lib/utils";
 
 export function CheckoutForm({
   shop,
-  items,
+  quantity,
   addresses,
   defaultPhone,
   returnPath,
 }: {
   shop: { slug: string; name: string; location: LatLng; deliveryRadiusKm: number };
-  items: { productId: string; quantity: number }[];
+  /** Number of 19L cans. */
+  quantity: number;
   addresses: SavedAddress[];
   defaultPhone: string;
   returnPath: string;
@@ -50,7 +51,7 @@ export function CheckoutForm({
     const result = await apiRequest<{ id: string }>("/api/customer/orders", {
       body: {
         shopSlug: shop.slug,
-        items,
+        quantity,
         addressId,
         contactPhone: String(f.get("contactPhone") ?? ""),
         notes: String(f.get("notes") ?? ""),

@@ -34,7 +34,7 @@ export function DeleteShop({ shopName }: { shopName: string }) {
     <Card className="flex flex-col gap-3 border-danger/40">
       <CardTitle>Delete shop</CardTitle>
       <CardDescription>
-        Permanently removes your shop, its products and reviews. Any orders that aren&apos;t finished yet are cancelled and
+        Permanently removes your shop and its reviews. Any orders that aren&apos;t finished yet are cancelled and
         customers are told the shop has closed. Your account and past order records are kept. To take a break instead,
         close your shop from the Overview page.
       </CardDescription>

@@ -17,6 +17,11 @@ export const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
   other: "Other",
 };
 
+/** What customers order: water cans of one standard size, at one price per shop. */
+export const CAN_SIZE_LITERS = 19;
+export const CAN_LABEL = `${CAN_SIZE_LITERS}L water can`;
+export const MAX_CANS_PER_ORDER = 50;
+
 export const SHOP_SORTS = ["distance", "rating", "price"] as const;
 export const DEFAULT_RADIUS_KM = 10;
 export const MAX_RADIUS_KM = 50;
@@ -28,9 +33,6 @@ export function toMinorUnits(major: number): number {
 export function fromMinorUnits(minor: number): number {
   return minor / MINOR_PER_MAJOR;
 }
-
-/** Products at or below this stock level are flagged as low stock. */
-export const LOW_STOCK_THRESHOLD = 5;
 
 const priceFormatter = new Intl.NumberFormat("en", {
   style: "currency",

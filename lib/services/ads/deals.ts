@@ -125,7 +125,7 @@ export async function listLatestDeals(limit = 6): Promise<PublicDeal[]> {
   cacheTag(DEALS_TAG);
   await connectDB();
   const now = new Date();
-  const shopFilter = await listableShopFilter(now);
+  const shopFilter = listableShopFilter(now);
   const rows = await Deal.aggregate<DealLean & { shop: { slug: string; name: string; address: { area?: string; city: string }; verifiedBadge?: unknown } }>([
     { $match: running(now) },
     { $sort: { createdAt: -1 } },

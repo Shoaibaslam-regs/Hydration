@@ -9,7 +9,6 @@ import { FINAL_ORDER_STATUSES, ORDER_STATUSES } from "@/lib/orders/status";
 import { refreshShopRating } from "../reviews";
 import { removeShopData } from "../shop-removal";
 import { shopTag } from "../shops";
-import { returnStock } from "../stock";
 import { logAdminAction } from "./audit";
 
 export type UserRemovalResult = { role: string; cancelledOrders: number; anonymizedOrders: number; deletedReviews: number; removedShop: boolean };
@@ -40,7 +39,7 @@ export async function deleteUserAccount(
   const result: UserRemovalResult = { role: user.role, cancelledOrders: 0, anonymizedOrders: 0, deletedReviews: 0, removedShop: false };
   const touchedShops = new Set<string>();
 
-  // Shopkeeper: remove their shop first (cancels its unfinished orders, deletes products and reviews).
+  // Shopkeeper: remove their shop first (cancels its unfinished orders, deletes its reviews).
   const shop = await Shop.findOne({ ownerId: user._id }, { slug: 1 }).lean();
   if (shop) {
     const removed = await removeShopData(shop, "admin", `Shop removed: ${reason}`);
@@ -48,7 +47,7 @@ export async function deleteUserAccount(
     result.removedShop = true;
   }
 
-  // Customer orders: cancel unfinished ones (claim each so a concurrent update can't double-return stock).
+  // Customer orders: cancel unfinished ones (each claimed with its status as a precondition).
   const unfinished = ORDER_STATUSES.filter((s) => !FINAL_ORDER_STATUSES.includes(s));
   const open = await Order.find({ customerId: user._id, status: { $in: unfinished } }, { status: 1, shopId: 1, items: 1 }).lean();
   for (const o of open) {
@@ -57,7 +56,6 @@ export async function deleteUserAccount(
       { $set: { status: "cancelled" }, $push: { statusHistory: { status: "cancelled", at: new Date(), by: "admin", note: "Customer account deleted" } } },
     );
     if (claimed.modifiedCount === 0) continue;
-    await returnStock(o.shopId, o.items);
     touchedShops.add(o.shopId.toString());
     result.cancelledOrders += 1;
   }

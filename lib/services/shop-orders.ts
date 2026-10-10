@@ -1,5 +1,4 @@
 import "server-only";
-import { revalidateTag } from "next/cache";
 import { Types } from "mongoose";
 import { ApiError } from "@/lib/api/errors";
 import type { ProductType } from "@/lib/catalog";
@@ -8,15 +7,12 @@ import { Order } from "@/lib/db/models";
 import {
   canShopkeeperMove,
   REASON_REQUIRED,
-  RESTOCKING_STATUSES,
   SHOPKEEPER_TRANSITIONS,
   type OrderStatus,
 } from "@/lib/orders/status";
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
 import type { OrderListQuery, OrderStatusUpdate } from "@/lib/validation/shopkeeper";
 import type { MyShop } from "./my-shop";
-import { shopTag } from "./shops";
-import { returnStock } from "./stock";
 
 export type ShopOrderSummary = {
   id: string;
@@ -122,8 +118,8 @@ export async function getShopOrder(shop: MyShop, orderId: string): Promise<ShopO
 
 /**
  * Move an order to its next status. Uses the current status as a precondition
- * so two concurrent updates can't both apply. Rejected/cancelled orders return
- * their quantities to stock; delivered cash orders are marked paid.
+ * so two concurrent updates can't both apply. Delivered cash orders are marked
+ * paid, and the customer sees an unread dot until they open the order.
  */
 export async function updateShopOrderStatus(
   shop: MyShop,
@@ -143,7 +139,7 @@ export async function updateShopOrderStatus(
     throw ApiError.badRequest("Please give the customer a reason", { fieldErrors: { note: ["Reason is required"] } });
   }
 
-  const $set: Record<string, unknown> = { status: to };
+  const $set: Record<string, unknown> = { status: to, customerUnread: true };
   if (to === "delivered" && order.payment.method === "cash_on_delivery") $set["payment.status"] = "paid";
 
   const updated = await Order.findOneAndUpdate(
@@ -153,9 +149,5 @@ export async function updateShopOrderStatus(
   ).lean();
   if (!updated) throw ApiError.conflict("This order was just updated. Refresh and try again.");
 
-  if (RESTOCKING_STATUSES.includes(to)) {
-    await returnStock(shop.id, order.items);
-    revalidateTag(shopTag(shop.slug), { expire: 0 });
-  }
   return toDetail(updated as unknown as OrderLean);
 }

@@ -11,7 +11,7 @@ import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
 import { formatDateTime, formatDayRange } from "@/lib/catalog";
 import { listMyDeals } from "@/lib/services/ads/deals";
 import { adTotals } from "@/lib/services/ads/stats";
-import { listMyCampaigns, sponsorshipStatus } from "@/lib/services/ads/sponsored";
+import { isSponsoredNow, listMyCampaigns } from "@/lib/services/ads/sponsored";
 import { getPlatformSettings } from "@/lib/services/platform-settings";
 
 export const metadata: Metadata = { title: "Promote your shop" };
@@ -36,14 +36,13 @@ export default function PromotePage() {
 
 async function PromoteContent() {
   const { shop } = await requireShopkeeperShop("/shop/promote");
-  const [status, campaigns, deals, settings, stats] = await Promise.all([
-    sponsorshipStatus(shop.id),
+  const [sponsoredNow, campaigns, deals, settings, stats] = await Promise.all([
+    isSponsoredNow(shop.id),
     listMyCampaigns(shop),
     listMyDeals(shop),
     getPlatformSettings(),
     adTotals("sponsored", [shop.id], 30),
   ]);
-  const sponsoredNow = status.viaPlan || status.viaCampaign;
   const pendingRequest = campaigns.some((c) => c.status === "pending");
   const runningDeals = deals.filter((d) => d.state === "running");
   const s = stats.get(shop.id) ?? { impressions: 0, clicks: 0 };
@@ -62,7 +61,6 @@ async function PromoteContent() {
           <Badge tone={sponsoredNow ? "success" : "neutral"}>{sponsoredNow ? "Sponsored now" : "Not sponsored"}</Badge>
         </div>
 
-        {status.viaPlan && <p className="text-sm">Included with your Pro plan while it&apos;s active.</p>}
 
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-lg bg-muted p-3">

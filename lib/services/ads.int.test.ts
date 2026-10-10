@@ -4,11 +4,11 @@ import { dayKey } from "@/lib/ads/dates";
 import { AdminAction, Banner, Deal, Shop, SponsoredCampaign } from "@/lib/db/models";
 import { bannerInputSchema, bannerLinkSchema } from "@/lib/validation/ads";
 import { shopSearchSchema } from "@/lib/validation/shops";
-import { createProduct, createShop, createUser, HOME } from "@/test/fixtures";
+import { createShop, createUser, HOME } from "@/test/fixtures";
 import { setupTestDb } from "@/test/db";
 import { bannerClickTarget, createBanner, getBannerImage, listRunningBanners, saveBannerImage, sniffImageType, updateBanner } from "./ads/banners";
 import { createMyDeal, endMyDeal, listLatestDeals, removeDealAsAdmin } from "./ads/deals";
-import { decideCampaign, findSponsoredShops, requestCampaign, sponsorshipStatus, withdrawMyCampaign } from "./ads/sponsored";
+import { decideCampaign, findSponsoredShops, isSponsoredNow, requestCampaign, withdrawMyCampaign } from "./ads/sponsored";
 import { adTotals, recordAdEvent } from "./ads/stats";
 import { searchShops } from "./shops";
 
@@ -18,9 +18,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const today = () => dayKey(new Date());
 
 async function liveShop(overrides: Parameters<typeof createShop>[1] = {}) {
-  const shop = await createShop(await createUser("shopkeeper"), overrides);
-  await createProduct(shop);
-  return shop;
+  return createShop(await createUser("shopkeeper"), overrides);
 }
 
 describe("deals", () => {
@@ -91,10 +89,10 @@ describe("sponsored campaigns", () => {
     const c = await requestCampaign(shop, { startDate: today(), weeks: 1, note: "" });
     await decideCampaign(admin, c.id, { decision: "approve" });
     await expect(decideCampaign(admin, c.id, { decision: "reject", reason: "late" })).rejects.toMatchObject({ status: 409 });
-    expect(await sponsorshipStatus(shop.id)).toEqual({ viaPlan: false, viaCampaign: true });
+    expect(await isSponsoredNow(shop.id)).toBe(true);
 
     await decideCampaign(admin, c.id, { decision: "cancel", reason: "Payment bounced" });
-    expect(await sponsorshipStatus(shop.id)).toEqual({ viaPlan: false, viaCampaign: false });
+    expect(await isSponsoredNow(shop.id)).toBe(false);
 
     const r = await requestCampaign(shop, { startDate: today(), weeks: 1, note: "" });
     await decideCampaign(admin, r.id, { decision: "reject", reason: "No payment" });
@@ -111,7 +109,7 @@ describe("sponsored campaigns", () => {
     expect(await SponsoredCampaign.findById(c.id).lean()).toMatchObject({ status: "pending" });
   });
 
-  it("picks only eligible shops that deliver to the customer and match the filters", async () => {
+  it("picks only shops with a running campaign that are listed, deliver to the customer and match the filters", async () => {
     const admin = await createUser("admin", "Admin");
     const search = (extra: Record<string, string> = {}) =>
       findSponsoredShops(shopSearchSchema.parse({ lat: String(HOME.lat), lng: String(HOME.lng), ...extra }));
@@ -120,10 +118,14 @@ describe("sponsored campaigns", () => {
     const c = await requestCampaign(campaign, { startDate: today(), weeks: 1, note: "" });
     await decideCampaign(admin, c.id, { decision: "approve" });
 
-    const pro = await liveShop({ name: "Pro Shop" });
-    await Shop.updateOne({ _id: pro.id }, { subscription: { planId: "pro", endsAt: new Date(Date.now() + 10 * DAY) } });
-    const expiredPro = await liveShop({ name: "Expired Pro" });
-    await Shop.updateOne({ _id: expiredPro.id }, { subscription: { planId: "pro", endsAt: new Date(Date.now() - DAY) } });
+    const second = await liveShop({ name: "Second Shop" });
+    const c2 = await requestCampaign(second, { startDate: today(), weeks: 1, note: "" });
+    await decideCampaign(admin, c2.id, { decision: "approve" });
+    // A campaign doesn't help a shop whose plan has ended (it isn't listed at all).
+    const lapsed = await liveShop({ name: "Lapsed Shop" });
+    const c3 = await requestCampaign(lapsed, { startDate: today(), weeks: 1, note: "" });
+    await decideCampaign(admin, c3.id, { decision: "approve" });
+    await Shop.updateOne({ _id: lapsed.id }, { "subscription.endsAt": new Date(Date.now() - DAY) });
     await liveShop({ name: "Plain Shop" });
 
     // ~3 km away with a 1 km delivery radius: inside the search radius but doesn't deliver here.
@@ -131,12 +133,11 @@ describe("sponsored campaigns", () => {
     const f = await requestCampaign(far, { startDate: today(), weeks: 1, note: "" });
     await decideCampaign(admin, f.id, { decision: "approve" });
 
-    expect((await search()).map((s) => s.name).sort()).toEqual(["Campaign Shop", "Pro Shop"]);
-    expect(await sponsorshipStatus(pro.id)).toEqual({ viaPlan: true, viaCampaign: false });
+    expect((await search()).map((s) => s.name).sort()).toEqual(["Campaign Shop", "Second Shop"]);
 
     // Filters apply to sponsored shops too.
-    await createMyDeal(pro, { title: "Deal", description: "", days: 3 });
-    expect((await search({ deals: "1" })).map((s) => s.name)).toEqual(["Pro Shop"]);
+    await createMyDeal(second, { title: "Deal", description: "", days: 3 });
+    expect((await search({ deals: "1" })).map((s) => s.name)).toEqual(["Second Shop"]);
 
     // No location → no sponsored row.
     expect(await findSponsoredShops(shopSearchSchema.parse({}))).toEqual([]);

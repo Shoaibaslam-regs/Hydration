@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_RADIUS_KM, MAX_RADIUS_KM, PRODUCT_TYPES, SHOP_SORTS } from "@/lib/catalog";
+import { DEFAULT_RADIUS_KM, MAX_RADIUS_KM, SHOP_SORTS } from "@/lib/catalog";
 import { paginationSchema } from "./pagination";
 
 // HTML GET forms submit empty fields as "", which should mean "not set".
@@ -12,8 +12,7 @@ export const shopSearchSchema = paginationSchema
     lat: optional(z.coerce.number().min(-90).max(90)),
     lng: optional(z.coerce.number().min(-180).max(180)),
     radiusKm: z.preprocess(blankToUndefined, z.coerce.number().min(1).max(MAX_RADIUS_KM).default(DEFAULT_RADIUS_KM)),
-    type: optional(z.enum(PRODUCT_TYPES)),
-    /** Major currency units, as typed by the user. */
+    /** Max price per can, major currency units, as typed by the user. */
     maxPrice: optional(z.coerce.number().positive().max(1_000_000)),
     minRating: optional(z.coerce.number().min(1).max(5)),
     sort: optional(z.enum(SHOP_SORTS)),
