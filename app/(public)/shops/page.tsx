@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { AdImpression } from "@/components/ads/ad-impression";
 import { ShopCard } from "@/components/shops/shop-card";
 import { ShopFilters } from "@/components/shops/shop-filters";
 import { Container } from "@/components/ui/container";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
+import { findSponsoredShops } from "@/lib/services/ads/sponsored";
 import { searchShops } from "@/lib/services/shops";
 import { shopSearchSchema } from "@/lib/validation/shops";
 
@@ -39,7 +41,11 @@ async function Results({ searchParams }: { searchParams: PageProps<"/shops">["se
   // Search params are user-controlled; fall back to defaults rather than erroring.
   const parsed = shopSearchSchema.safeParse(firstValues(raw));
   const input = parsed.success ? parsed.data : shopSearchSchema.parse({});
-  const result = await searchShops(input);
+  const [result, sponsored] = await Promise.all([
+    searchShops(input),
+    // Sponsored slots only above the first page, and only for located searches.
+    input.page === 1 ? findSponsoredShops(input) : Promise.resolve([]),
+  ]);
 
   if (result.items.length === 0) {
     return (
@@ -66,6 +72,17 @@ async function Results({ searchParams }: { searchParams: PageProps<"/shops">["se
         {result.total} {result.total === 1 ? "shop" : "shops"} found
         {!parsed.success && " (some filters were invalid and ignored)"}
       </p>
+      {sponsored.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Sponsored shops">
+          {sponsored.map((shop) => (
+            <AdImpression key={shop.id} kind="sponsored" id={shop.id} className="flex">
+              <div className="flex w-full flex-col [&>*]:flex-1">
+                <ShopCard shop={shop} sponsored />
+              </div>
+            </AdImpression>
+          ))}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {result.items.map((shop) => (
           <ShopCard key={shop.id} shop={shop} />

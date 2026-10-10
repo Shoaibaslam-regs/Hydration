@@ -8,6 +8,8 @@ const platformSettingsSchema = new Schema(
     requireSubscription: { type: Boolean, default: false },
     /** Where shopkeepers send subscription payments (account numbers etc.), shown on their billing page. */
     paymentInstructions: { type: String, default: "", maxlength: 2000 },
+    /** Sponsorship price and how to pay, shown on shopkeepers' Promote page. */
+    sponsorshipInfo: { type: String, default: "", maxlength: 2000 },
   },
   { timestamps: true },
 );

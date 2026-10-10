@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormError } from "@/components/auth/form-error";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Field, Textarea } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 
@@ -37,6 +38,7 @@ export function AdminActions({
   redirectTo?: string;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, setPending] = useState(false);
   const [asking, setAsking] = useState<AdminAction | null>(null);
   const [reason, setReason] = useState("");
@@ -50,7 +52,17 @@ export function AdminActions({
       setError(null);
       return;
     }
-    if (action.confirm && !confirm(action.confirm)) return;
+    if (action.confirm) {
+      // Short questions make a good title; longer ones go under a "Label?" title.
+      const long = action.confirm.length > 60;
+      const ok = await confirm({
+        title: long ? `${action.label}?` : action.confirm,
+        message: long ? action.confirm : undefined,
+        confirmLabel: action.label,
+        tone: action.danger ? "danger" : "primary",
+      });
+      if (!ok) return;
+    }
     setPending(true);
     setError(null);
     const body = action.needsReason ? { ...action.body, [reasonKey]: reason.trim() } : action.body;

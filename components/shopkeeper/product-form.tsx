@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormError } from "@/components/auth/form-error";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Card } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
@@ -12,6 +13,7 @@ import type { MyProduct } from "@/lib/services/my-products";
 
 export function ProductForm({ product }: { product: MyProduct | null }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, setPending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,14 @@ export function ProductForm({ product }: { product: MyProduct | null }) {
   }
 
   async function onDelete() {
-    if (!product || !confirm(`Delete "${product.name}"? This can't be undone.`)) return;
+    if (!product) return;
+    const ok = await confirm({
+      title: `Delete “${product.name}”?`,
+      message: "It disappears from your shop. Past orders keep their copy. This can't be undone.",
+      confirmLabel: "Delete product",
+      tone: "danger",
+    });
+    if (!ok) return;
     setDeleting(true);
     const result = await apiRequest(`/api/shopkeeper/products/${product.id}`, { method: "DELETE" });
     if (!result.ok) {

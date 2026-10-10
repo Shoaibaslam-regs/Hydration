@@ -5,6 +5,7 @@ import { useState } from "react";
 import { FormError } from "@/components/auth/form-error";
 import { LocationPicker } from "@/components/map/location-picker";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
@@ -14,6 +15,7 @@ import type { SavedAddress } from "@/lib/services/addresses";
 
 export function AddressForm({ address, next }: { address: SavedAddress | null; next?: string | null }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [location, setLocation] = useState<LatLng | null>(address?.location ?? null);
   const [pending, setPending] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -58,7 +60,9 @@ export function AddressForm({ address, next }: { address: SavedAddress | null; n
   }
 
   async function onDelete() {
-    if (!address || !confirm(`Delete the address "${address.label}"?`)) return;
+    if (!address) return;
+    const ok = await confirm({ title: `Delete the address “${address.label}”?`, confirmLabel: "Delete", tone: "danger" });
+    if (!ok) return;
     setDeleting(true);
     const result = await apiRequest(`/api/customer/addresses/${address.id}`, { method: "DELETE" });
     if (!result.ok) {

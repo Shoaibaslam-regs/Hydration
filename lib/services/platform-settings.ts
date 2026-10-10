@@ -5,7 +5,7 @@ import { connectDB } from "@/lib/db/connect";
 import { PlatformSettings } from "@/lib/db/models";
 import { logAdminAction } from "./admin/audit";
 
-export type Settings = { requireSubscription: boolean; paymentInstructions: string };
+export type Settings = { requireSubscription: boolean; paymentInstructions: string; sponsorshipInfo: string };
 
 const SETTINGS_TAG = "platform-settings";
 
@@ -19,6 +19,7 @@ export async function getPlatformSettings(): Promise<Settings> {
   return {
     requireSubscription: doc?.requireSubscription ?? false,
     paymentInstructions: doc?.paymentInstructions ?? "",
+    sponsorshipInfo: doc?.sponsorshipInfo ?? "",
   };
 }
 
@@ -29,9 +30,14 @@ export async function updatePlatformSettings(admin: SessionUser, patch: Partial<
     await logAdminAction(admin, patch.requireSubscription ? "settings.requireSubscription.on" : "settings.requireSubscription.off", "platform", null);
   }
   if (patch.paymentInstructions !== undefined) await logAdminAction(admin, "settings.paymentInstructions", "platform", null);
+  if (patch.sponsorshipInfo !== undefined) await logAdminAction(admin, "settings.sponsorshipInfo", "platform", null);
   revalidateTag(SETTINGS_TAG, { expire: 0 });
   const doc = await PlatformSettings.findById("platform").lean();
-  return { requireSubscription: doc?.requireSubscription ?? false, paymentInstructions: doc?.paymentInstructions ?? "" };
+  return {
+    requireSubscription: doc?.requireSubscription ?? false,
+    paymentInstructions: doc?.paymentInstructions ?? "",
+    sponsorshipInfo: doc?.sponsorshipInfo ?? "",
+  };
 }
 
 /** Whether a shop may be listed and take orders given the subscription rule. */

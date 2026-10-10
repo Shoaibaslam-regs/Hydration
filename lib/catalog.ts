@@ -68,3 +68,14 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en", {
 export function formatDateTime(iso: string): string {
   return dateTimeFormatter.format(new Date(iso));
 }
+
+const dateFormatter = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: TIME_ZONE });
+
+export function formatDate(iso: string): string {
+  return dateFormatter.format(new Date(iso));
+}
+
+/** "Oct 10, 2026 – Oct 16, 2026" for a period whose end is exclusive (midnight after the last day). */
+export function formatDayRange(startIso: string, endExclusiveIso: string): string {
+  return `${formatDate(startIso)} – ${formatDate(new Date(new Date(endExclusiveIso).getTime() - 1).toISOString())}`;
+}

@@ -17,6 +17,8 @@ export const shopSearchSchema = paginationSchema
     maxPrice: optional(z.coerce.number().positive().max(1_000_000)),
     minRating: optional(z.coerce.number().min(1).max(5)),
     sort: optional(z.enum(SHOP_SORTS)),
+    /** "1" = only shops with a running deal. */
+    deals: z.preprocess((v) => v === "1" || v === true, z.boolean()).default(false),
   })
   .refine((v) => (v.lat === undefined) === (v.lng === undefined), {
     message: "lat and lng must be provided together",

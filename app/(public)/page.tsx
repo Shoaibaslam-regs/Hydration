@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
+import { HomeAds } from "@/components/ads/home-ads";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
@@ -45,6 +47,10 @@ export default function Home() {
           </div>
         </Container>
       </section>
+
+      <Suspense fallback={null}>
+        <HomeAds />
+      </Suspense>
 
       <section>
         <Container className="py-16">

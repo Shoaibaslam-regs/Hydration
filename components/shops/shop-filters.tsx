@@ -19,7 +19,7 @@ export function ShopFilters() {
   const [geoError, setGeoError] = useState<string | null>(null);
   // On small screens the extra filters fold away so results start on the first screen.
   const [showFilters, setShowFilters] = useState(false);
-  const activeFilters = ["type", "maxPrice", "minRating", "sort", "radiusKm"].filter((k) => params.get(k)).length;
+  const activeFilters = ["type", "maxPrice", "minRating", "sort", "radiusKm", "deals"].filter((k) => params.get(k)).length;
 
   const hasLocation = params.has("lat") && params.has("lng");
 
@@ -143,6 +143,10 @@ export function ShopFilters() {
             </Select>
           </div>
         )}
+        <label className="flex items-center gap-2 self-end pb-2 text-sm">
+          <input type="checkbox" name="deals" value="1" defaultChecked={params.get("deals") === "1"} className="size-4 accent-[var(--primary)]" />
+          Deals only
+        </label>
         </div>
         <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
           <Button

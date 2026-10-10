@@ -4,17 +4,26 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormError } from "@/components/auth/form-error";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Field, Textarea } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 export function CancelOrderButton({ orderId }: { orderId: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function cancel() {
-    if (!confirm("Cancel this order?")) return;
+    const ok = await confirm({
+      title: "Cancel this order?",
+      message: "The shop will be told, and you can't undo this.",
+      confirmLabel: "Cancel order",
+      cancelLabel: "Keep order",
+      tone: "danger",
+    });
+    if (!ok) return;
     setPending(true);
     const result = await apiRequest(`/api/customer/orders/${orderId}/cancel`, { body: {} });
     setPending(false);

@@ -28,6 +28,7 @@ export const settingsUpdateSchema = z
   .object({
     requireSubscription: z.boolean(),
     paymentInstructions: z.string().trim().max(2000),
+    sponsorshipInfo: z.string().trim().max(2000),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });

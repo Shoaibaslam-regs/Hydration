@@ -60,6 +60,14 @@ const shopSchema = new Schema(
      */
     closure: { type: closureSchema, default: null },
     /**
+     * The shop's running deal that ends last, copied here so search can filter
+     * on "has a deal" and show it on cards. Refreshed by refreshShopDeal().
+     */
+    featuredDeal: {
+      type: new Schema({ title: { type: String, required: true }, endsAt: { type: Date, required: true } }, { _id: false }),
+      default: null,
+    },
+    /**
      * Public "Verified" trust badge, granted by an admin to shops the Aqua team
      * has checked further. Separate from `status` (every listed shop is
      * approved); null when the shop doesn't have it.
@@ -97,6 +105,7 @@ shopSchema.index({ location: "2dsphere" });
 shopSchema.index({ status: 1, "rating.average": -1 });
 shopSchema.index({ status: 1, "address.city": 1 });
 shopSchema.index({ "subscription.endsAt": 1 });
+shopSchema.index({ "featuredDeal.endsAt": 1 });
 
 export type ShopDoc = InferSchemaType<typeof shopSchema>;
 

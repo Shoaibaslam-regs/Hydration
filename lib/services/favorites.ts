@@ -48,5 +48,6 @@ export async function listFavoriteShops(userId: string): Promise<ShopSummary[]> 
       distanceKm: null,
       isClosed: Boolean(s.closure),
       hasVerifiedBadge: Boolean(s.verifiedBadge),
+      deal: s.featuredDeal && s.featuredDeal.endsAt > new Date() ? { title: s.featuredDeal.title, endsAt: s.featuredDeal.endsAt.toISOString() } : null,
     }));
 }

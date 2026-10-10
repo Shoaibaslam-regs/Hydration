@@ -73,6 +73,23 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
           {shop.description && <p className="mt-2 text-muted-foreground">{shop.description}</p>}
         </header>
 
+        {shop.deals.length > 0 && !shop.closure && (
+          <section aria-labelledby="deals-heading" className="flex flex-col gap-2">
+            <h2 id="deals-heading" className="text-lg font-semibold">
+              Deals
+            </h2>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {shop.deals.map((d) => (
+                <li key={d.id} className="flex flex-col gap-1 rounded-xl border border-warning/40 bg-warning/10 p-3">
+                  <span className="font-semibold">{d.title}</span>
+                  {d.description && <span className="text-sm text-muted-foreground">{d.description}</span>}
+                  <span className="text-xs text-muted-foreground">Until {formatDateTime(d.endsAt)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <section aria-labelledby="products-heading" className="flex flex-col gap-3">
           <h2 id="products-heading" className="text-lg font-semibold">
             Order water

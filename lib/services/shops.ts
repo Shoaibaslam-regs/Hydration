@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Product, Review, Shop } from "@/lib/db/models";
 import { paginated, type Paginated } from "@/lib/validation/pagination";
 import type { ShopSearch } from "@/lib/validation/shops";
+import { runningDealsForShop } from "./ads/deals";
 import { getPlatformSettings } from "./platform-settings";
 import { buildShopSearchPipeline } from "./shop-search";
 
@@ -28,6 +29,8 @@ export type ShopSummary = {
   isClosed: boolean;
   /** Admin-granted "Verified" trust badge. */
   hasVerifiedBadge: boolean;
+  /** The shop's running deal that ends last, if any. */
+  deal: { title: string; endsAt: string } | null;
 };
 
 export type ProductSummary = {
@@ -53,12 +56,13 @@ export type ShopDetail = Omit<ShopSummary, "distanceKm"> & {
   closure: { by: "shopkeeper" | "admin"; reason: string } | null;
   /** End of the shop's paid plan, if any. Only matters while plans are required. */
   planEndsAt: string | null;
+  deals: { id: string; title: string; description: string; endsAt: string }[];
 };
 
 /** Cache tag for a shop's public page; revalidate it when the shop or its products change. */
 export const shopTag = (slug: string) => `shop:${slug}`;
 
-type ShopRow = {
+export type ShopRow = {
   _id: Types.ObjectId;
   slug: string;
   name: string;
@@ -72,9 +76,10 @@ type ShopRow = {
   distanceMeters?: number;
   closure?: { by: string; reason?: string | null } | null;
   verifiedBadge?: { grantedAt: Date } | null;
+  featuredDeal?: { title: string; endsAt: Date } | null;
 };
 
-function toShopSummary(row: ShopRow): ShopSummary {
+export function toShopSummary(row: ShopRow): ShopSummary {
   return {
     id: row._id.toString(),
     slug: row.slug,
@@ -90,6 +95,10 @@ function toShopSummary(row: ShopRow): ShopSummary {
     distanceKm: row.distanceMeters === undefined ? null : row.distanceMeters / 1000,
     isClosed: Boolean(row.closure),
     hasVerifiedBadge: Boolean(row.verifiedBadge),
+    deal:
+      row.featuredDeal && row.featuredDeal.endsAt > new Date()
+        ? { title: row.featuredDeal.title, endsAt: row.featuredDeal.endsAt.toISOString() }
+        : null,
   };
 }
 
@@ -113,9 +122,10 @@ export async function getShopBySlug(slug: string): Promise<ShopDetail | null> {
   const shop = await Shop.findOne({ slug, status: "verified" }).lean();
   if (!shop) return null;
 
-  const [products, reviews] = await Promise.all([
+  const [products, reviews, deals] = await Promise.all([
     Product.find({ shopId: shop._id, isActive: true }).sort({ type: 1, price: 1 }).lean(),
     Review.find({ shopId: shop._id }).sort({ createdAt: -1 }).limit(10).lean(),
+    runningDealsForShop(shop._id),
   ]);
 
   const [lng, lat] = shop.location.coordinates;
@@ -126,6 +136,7 @@ export async function getShopBySlug(slug: string): Promise<ShopDetail | null> {
     addressLine1: shop.address.line1,
     closure: shop.closure ? { by: shop.closure.by as "shopkeeper" | "admin", reason: shop.closure.reason ?? "" } : null,
     planEndsAt: shop.subscription?.endsAt ? shop.subscription.endsAt.toISOString() : null,
+    deals,
     deliveryRadiusKm: shop.deliveryRadiusKm ?? 0,
     location: { lat, lng },
     products: products.map((p) => ({

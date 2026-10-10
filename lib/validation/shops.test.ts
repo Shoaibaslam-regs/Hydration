@@ -5,12 +5,13 @@ import { shopSearchSchema, shopSlugSchema } from "./shops";
 describe("shopSearchSchema", () => {
   it("treats blank form fields as unset and applies defaults", () => {
     const parsed = shopSearchSchema.parse({ q: "", type: "", maxPrice: "", radiusKm: "", lat: "", lng: "" });
-    expect(parsed).toEqual({ page: 1, limit: 20, radiusKm: DEFAULT_RADIUS_KM });
+    expect(parsed).toEqual({ page: 1, limit: 20, radiusKm: DEFAULT_RADIUS_KM, deals: false });
   });
 
   it("coerces numeric query params", () => {
     const parsed = shopSearchSchema.parse({ lat: "31.5", lng: "74.3", radiusKm: "5", maxPrice: "150", minRating: "4" });
     expect(parsed).toMatchObject({ lat: 31.5, lng: 74.3, radiusKm: 5, maxPrice: 150, minRating: 4 });
+    expect(shopSearchSchema.parse({ deals: "1" }).deals).toBe(true);
   });
 
   it("requires lat and lng together", () => {

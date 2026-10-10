@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormError } from "@/components/auth/form-error";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Field, Textarea } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 
@@ -17,6 +18,7 @@ export function SettingsForm({
   shopsWithoutPlan: number;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [instructions, setInstructions] = useState(paymentInstructions);
   const [pending, setPending] = useState<"toggle" | "save" | null>(null);
   const [saved, setSaved] = useState(false);
@@ -36,12 +38,18 @@ export function SettingsForm({
     router.refresh();
   }
 
-  function toggle() {
+  async function toggle() {
     const turningOn = !requireSubscription;
     const msg = turningOn
-      ? `Require an active plan? ${shopsWithoutPlan} verified ${shopsWithoutPlan === 1 ? "shop" : "shops"} without one will disappear from search and stop taking new orders right away.`
-      : "Stop requiring a plan? Every verified, open shop will be listed again.";
-    if (confirm(msg)) patch({ requireSubscription: turningOn }, "toggle");
+      ? `${shopsWithoutPlan} approved ${shopsWithoutPlan === 1 ? "shop" : "shops"} without one will disappear from search and stop taking new orders right away.`
+      : "Every approved, open shop will be listed again.";
+    const ok = await confirm({
+      title: turningOn ? "Require an active plan?" : "Stop requiring a plan?",
+      message: msg,
+      confirmLabel: turningOn ? "Turn on" : "Turn off",
+      tone: turningOn ? "danger" : "primary",
+    });
+    if (ok) patch({ requireSubscription: turningOn }, "toggle");
   }
 
   return (
@@ -53,7 +61,7 @@ export function SettingsForm({
           <p className="text-sm text-muted-foreground">
             {requireSubscription
               ? "On: shops without an active plan are hidden from search and can't take new orders."
-              : `Off: every verified shop is listed. Turning it on would hide ${shopsWithoutPlan} ${shopsWithoutPlan === 1 ? "shop" : "shops"} that ${shopsWithoutPlan === 1 ? "has" : "have"} no active plan.`}
+              : `Off: every approved shop is listed. Turning it on would hide ${shopsWithoutPlan} ${shopsWithoutPlan === 1 ? "shop" : "shops"} that ${shopsWithoutPlan === 1 ? "has" : "have"} no active plan.`}
           </p>
         </div>
         <Button variant={requireSubscription ? "danger-outline" : "primary"} onClick={toggle} disabled={pending !== null}>
