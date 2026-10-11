@@ -38,7 +38,7 @@ export function DashboardShell({
             <Suspense fallback={<span className="h-5 w-24 animate-pulse rounded bg-muted" />}>
               <UserName />
             </Suspense>
-            <LogoutButton />
+            <LogoutButton className="whitespace-nowrap px-2 sm:px-4" />
           </div>
         </Container>
       </header>
@@ -58,9 +58,11 @@ export function DashboardShell({
   );
 }
 
+/** The signed-in user's name. */
 async function UserName() {
   const user = await getSessionUser();
-  return user ? <span className="hidden max-w-40 truncate text-sm sm:inline">{user.name}</span> : null;
+  if (!user) return null;
+  return <span className="hidden max-w-40 truncate text-sm md:inline">{user.name}</span>;
 }
 
 export function PageSkeleton() {

@@ -6,7 +6,10 @@ import { AdminActions } from "@/components/admin/admin-actions";
 import { AuditLog } from "@/components/admin/audit-log";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { LocationMap } from "@/components/map/location-map";
+import { StarShopBadge } from "@/components/shops/star-badge";
 import { VerifiedBadge } from "@/components/shops/verified-badge";
+import { AdminMessageForm } from "@/components/support/admin-message-form";
+import { IdChip } from "@/components/ui/id-chip";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import {
@@ -53,6 +56,8 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold">{shop.name}</h1>
           {shop.hasVerifiedBadge && <VerifiedBadge />}
+          {shop.hasStarAward && <StarShopBadge />}
+          <IdChip id={shop.publicId} />
           <Badge tone={SHOP_STATUS_TONES[shop.status]}>{SHOP_STATUS_LABELS[shop.status]}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -114,6 +119,43 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
         />
       </Card>
 
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>Star shop award</CardTitle>
+          {shop.hasStarAward ? <StarShopBadge /> : <Badge>Not given</Badge>}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {shop.starGrantedAt
+            ? `Given ${formatDateTime(shop.starGrantedAt)}. Everyone sees the ★ Star shop mark on this shop's card and page.`
+            : "Reward an outstanding shop. Everyone sees a ★ Star shop mark on its card and page, and the shopkeeper gets a congratulations message in their Contact Aqua inbox."}
+        </p>
+        {shop.hasStarAward ? (
+          <AdminActions
+            endpoint={`/api/admin/shops/${shop.id}/star`}
+            method="POST"
+            reasonHint="Kept in the admin history."
+            actions={[{ label: "Remove award", body: { action: "revoke" }, needsReason: true, danger: true }]}
+          />
+        ) : (
+          <AdminActions
+            endpoint={`/api/admin/shops/${shop.id}/star`}
+            method="POST"
+            reasonKey="message"
+            reasonHint="Optional: a personal note for the shopkeeper. Leave it empty to send the standard congratulations."
+            actions={[
+              { label: "★ Make Star shop", body: { action: "grant" }, needsReason: true, reasonOptional: true, reasonLabel: "Note to the shopkeeper" },
+            ]}
+          />
+        )}
+      </Card>
+
+      {shop.owner && (
+        <Card className="flex flex-col gap-3">
+          <CardTitle>Message the shopkeeper</CardTitle>
+          <AdminMessageForm userId={shop.owner.id} role="shopkeeper" name={shop.owner.name} />
+        </Card>
+      )}
+
       {shop.status === "verified" && (
         <Card className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -147,9 +189,12 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
             <dt className="text-muted-foreground">Owner</dt>
             <dd>
               {shop.owner ? (
-                <Link href={`/admin/users/${shop.owner.id}`} className="text-primary hover:underline">
-                  {shop.owner.name} · {shop.owner.email}
-                </Link>
+                <span className="flex flex-wrap items-center gap-2">
+                  <Link href={`/admin/users/${shop.owner.id}`} className="text-primary hover:underline">
+                    {shop.owner.name} · {shop.owner.email}
+                  </Link>
+                  <IdChip id={shop.owner.publicId} />
+                </span>
               ) : (
                 "—"
               )}
@@ -170,7 +215,7 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
             <dd>{shop.pricePerCan ? formatPrice(shop.pricePerCan) : <span className="text-danger">Not set (hidden from search)</span>}</dd>
             <dt className="text-muted-foreground">Orders</dt>
             <dd>
-              <Link href={`/admin/orders?shopId=${shop.id}`} className="text-primary hover:underline">
+              <Link href={`/admin/orders/shops/${shop.id}`} className="text-primary hover:underline">
                 {shop.orderCount}
               </Link>
             </dd>

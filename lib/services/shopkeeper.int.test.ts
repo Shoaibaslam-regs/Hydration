@@ -86,6 +86,12 @@ describe("shopkeeper order handling", () => {
     expect((await getShopOrder(shop, id))!.history).toHaveLength(2);
   });
 
+  it("shows the customer's ID on the shop's orders", async () => {
+    const { shop, id } = await withOrder();
+    expect((await getShopOrder(shop, id))!.customerPublicId).toMatch(/^CU-[A-Z2-9]{6}$/);
+    expect((await listShopOrders(shop, { page: 1, limit: 20 })).items[0].customerPublicId).toMatch(/^CU-/);
+  });
+
   it("hides other shops' orders", async () => {
     const { id } = await withOrder();
     const other = await createShop(await createUser("shopkeeper"));

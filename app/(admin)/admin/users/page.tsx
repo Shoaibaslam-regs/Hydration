@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/button";
+import { IdChip } from "@/components/ui/id-chip";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterTabs } from "@/components/ui/filter-tabs";
@@ -55,7 +56,7 @@ async function UsersContent({ searchParams }: { searchParams: PageProps<"/admin/
       />
       <form action="/admin/users" className="flex flex-col gap-2 sm:flex-row">
         {query.role && <input type="hidden" name="role" value={query.role} />}
-        <Input name="q" type="search" placeholder="Search name, email, phone" defaultValue={query.q ?? ""} aria-label="Search users" />
+        <Input name="q" type="search" placeholder="Search name, email, phone or ID (CU-…, SK-…)" defaultValue={query.q ?? ""} aria-label="Search users" />
         <Select name="status" defaultValue={query.status ?? ""} aria-label="Account status" className="sm:w-44">
           <option value="">Any status</option>
           <option value="active">Active</option>
@@ -75,7 +76,10 @@ async function UsersContent({ searchParams }: { searchParams: PageProps<"/admin/
               <li key={u.id}>
                 <Link href={`/admin/users/${u.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-muted/50">
                   <span className="flex min-w-0 flex-col">
-                    <span className="font-medium">{u.name}</span>
+                    <span className="flex flex-wrap items-center gap-2 font-medium">
+                      {u.name}
+                      <IdChip id={u.publicId} />
+                    </span>
                     <span className="truncate text-sm text-muted-foreground">{u.email}</span>
                     <span className="text-xs text-muted-foreground">
                       Joined {formatDateTime(u.createdAt)}

@@ -49,6 +49,7 @@ const CARD_FIELDS = {
   imageUrl: 1,
   distanceMeters: 1,
   verifiedBadge: 1,
+  starAward: 1,
   featuredDeal: 1,
 } as const;
 

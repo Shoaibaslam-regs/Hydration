@@ -14,8 +14,9 @@ export function Textarea({ className, ...props }: React.ComponentProps<"textarea
   return <textarea className={cn(fieldClasses, "min-h-24 py-2", className)} {...props} />;
 }
 
+/** Dropdowns use the frosted "water" glass style (`.glass-select` in globals.css). */
 export function Select({ className, ...props }: React.ComponentProps<"select">) {
-  return <select className={cn(fieldClasses, "h-10", className)} {...props} />;
+  return <select className={cn(fieldClasses, "glass-select h-10", className)} {...props} />;
 }
 
 export function Label({ className, ...props }: React.ComponentProps<"label">) {

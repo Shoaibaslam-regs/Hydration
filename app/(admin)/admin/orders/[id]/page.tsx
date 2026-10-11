@@ -8,6 +8,7 @@ import { DeleteButton } from "@/components/ui/delete-button";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { IdChip } from "@/components/ui/id-chip";
 import { requireRole } from "@/lib/auth/session";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { ORDER_STATUS_LABELS } from "@/lib/orders/status";
@@ -32,8 +33,11 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/orders/[id]">
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/admin/orders" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Orders
+        <Link
+          href={order.shop ? `/admin/orders/shops/${order.shop.id}` : "/admin/orders"}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← {order.shop ? `${order.shop.name} orders` : "Orders"}
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold">{order.orderNumber}</h1>
@@ -83,9 +87,12 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/orders/[id]">
           <p>
             <span className="text-muted-foreground">Shop: </span>
             {order.shop ? (
-              <Link href={`/admin/shops/${order.shop.id}`} className="text-primary hover:underline">
-                {order.shop.name}
-              </Link>
+              <>
+                <Link href={`/admin/shops/${order.shop.id}`} className="text-primary hover:underline">
+                  {order.shop.name}
+                </Link>{" "}
+                <IdChip id={order.shopPublicId} />
+              </>
             ) : (
               "Deleted shop"
             )}
@@ -93,9 +100,12 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/orders/[id]">
           <p>
             <span className="text-muted-foreground">Customer: </span>
             {order.customer ? (
-              <Link href={`/admin/users/${order.customer.id}`} className="text-primary hover:underline">
-                {order.customer.name}
-              </Link>
+              <>
+                <Link href={`/admin/users/${order.customer.id}`} className="text-primary hover:underline">
+                  {order.customer.name}
+                </Link>{" "}
+                <IdChip id={order.customer.publicId} />
+              </>
             ) : (
               order.customerName
             )}
@@ -133,7 +143,7 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/orders/[id]">
             confirmTitle={`Delete order ${order.orderNumber} permanently?`}
             confirmMessage="This can't be undone. It disappears from the customer's and the shop's history and from reports."
             confirmLabel="Delete permanently"
-            redirectTo="/admin/orders"
+            redirectTo={order.shop ? `/admin/orders/shops/${order.shop.id}` : "/admin/orders"}
           />
         </Card>
       )}

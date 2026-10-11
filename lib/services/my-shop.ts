@@ -16,6 +16,8 @@ import { shopTag } from "./shops";
 /** The shopkeeper's own view of their shop (any status). */
 export type MyShop = {
   id: string;
+  /** "SH-…", shown to the shopkeeper so they can quote it to support. */
+  publicId: string;
   slug: string;
   name: string;
   description: string;
@@ -32,12 +34,14 @@ export type MyShop = {
   statusReason: string;
   closure: { by: "shopkeeper" | "admin"; at: string; reason: string } | null;
   hasVerifiedBadge: boolean;
+  hasStarAward: boolean;
   /** The free trial or paid period; null before the shop is first approved. */
   plan: { planId: string; isTrial: boolean; endsAt: string; active: boolean } | null;
 };
 
 type ShopLean = {
   _id: Types.ObjectId;
+  publicId?: string | null;
   slug: string;
   name: string;
   description?: string | null;
@@ -52,6 +56,7 @@ type ShopLean = {
   statusReason?: string | null;
   closure?: { by: string; at: Date; reason?: string | null } | null;
   verifiedBadge?: { grantedAt: Date } | null;
+  starAward?: { grantedAt: Date } | null;
   subscription?: { planId: string; endsAt: Date } | null;
 };
 
@@ -59,6 +64,7 @@ function toMyShop(shop: ShopLean): MyShop {
   const [lng, lat] = shop.location.coordinates;
   return {
     id: shop._id.toString(),
+    publicId: shop.publicId ?? "",
     slug: shop.slug,
     name: shop.name,
     description: shop.description ?? "",
@@ -75,6 +81,7 @@ function toMyShop(shop: ShopLean): MyShop {
       ? { by: shop.closure.by as "shopkeeper" | "admin", at: shop.closure.at.toISOString(), reason: shop.closure.reason ?? "" }
       : null,
     hasVerifiedBadge: Boolean(shop.verifiedBadge),
+    hasStarAward: Boolean(shop.starAward),
     plan: shop.subscription
       ? {
           planId: shop.subscription.planId,

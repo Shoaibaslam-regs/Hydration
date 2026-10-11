@@ -6,7 +6,8 @@ import { CountBadge } from "@/components/notifications/count-badge";
 import { useNotificationCounts } from "@/components/notifications/use-notification-counts";
 import { cn } from "@/lib/utils";
 
-export type DashboardNavItem = { href: string; label: string };
+/** `highlight` makes an item stand out (e.g. "Contact Aqua"), so help is easy to find. */
+export type DashboardNavItem = { href: string; label: string; highlight?: boolean };
 
 /**
  * Section links. Wraps on small screens so nothing hides off-screen;
@@ -28,10 +29,19 @@ export function DashboardNavLinks({ items, activePath }: { items: DashboardNavIt
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium",
-                active ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground",
+                item.highlight
+                  ? active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-primary/10 text-primary ring-1 ring-primary/30 hover:bg-primary/15"
+                  : active
+                    ? "bg-background text-primary shadow-sm"
+                    : "text-muted-foreground hover:bg-background hover:text-foreground",
               )}
             >
-              {item.label}
+              <span className="flex items-center gap-1.5">
+                {item.highlight && <span aria-hidden>💬</span>}
+                {item.label}
+              </span>
               <CountBadge count={counts[item.href] ?? 0} label="new" />
             </Link>
           </li>

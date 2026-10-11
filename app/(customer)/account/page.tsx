@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { ShopCard } from "@/components/shops/shop-card";
+import { StarCustomerBadge } from "@/components/shops/star-badge";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
@@ -11,6 +12,7 @@ import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { listAddresses } from "@/lib/services/addresses";
 import { listCustomerOrders } from "@/lib/services/customer-orders";
 import { searchShops } from "@/lib/services/shops";
+import { listShopsThatStarredMe } from "@/lib/services/star-customers";
 import { shopSearchSchema } from "@/lib/validation/shops";
 
 export const metadata: Metadata = { title: "My account" };
@@ -25,9 +27,10 @@ export default function AccountPage() {
 
 async function AccountOverview() {
   const user = await requireRole(["customer"], "/account");
-  const [addresses, orders] = await Promise.all([
+  const [addresses, orders, starredBy] = await Promise.all([
     listAddresses(user.id),
     listCustomerOrders(user.id, { page: 1, limit: 3 }),
+    listShopsThatStarredMe(user.id),
   ]);
   const home = addresses.find((a) => a.isDefault) ?? addresses[0];
   const nearby = home
@@ -36,7 +39,32 @@ async function AccountOverview() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Hi, {user.name.split(" ")[0]}</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-bold">Hi, {user.name.split(" ")[0]}</h1>
+        {starredBy.length > 0 && <StarCustomerBadge />}
+      </div>
+
+      {starredBy.length > 0 && (
+        <section className="flex flex-col gap-2 rounded-xl border border-award/40 bg-award-soft p-5 shadow-sm">
+          <CardTitle className="flex items-center gap-2">You&apos;re a star customer ★</CardTitle>
+          <CardDescription>
+            {starredBy.length === 1 ? "This shop has" : "These shops have"} tagged you as one of their regular customers. Thank you for
+            ordering with them!
+          </CardDescription>
+          <ul className="flex flex-wrap gap-2">
+            {starredBy.map((s) => (
+              <li key={s.slug}>
+                <Link
+                  href={`/shops/${s.slug}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-award/40 bg-card px-3 py-1 text-sm font-medium text-award hover:border-award"
+                >
+                  ★ {s.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {orders.items.length > 0 && (
         <Card className="flex flex-col gap-3">

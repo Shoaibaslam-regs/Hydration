@@ -30,7 +30,7 @@ export function MobileMenu({ auth }: { auth: React.ReactNode }) {
         <nav
           id="mobile-nav"
           aria-label="Mobile"
-          className="absolute inset-x-0 top-16 border-y border-border bg-background shadow-md md:hidden"
+          className="glass-panel-solid absolute inset-x-0 top-16 z-50 border-y md:hidden"
         >
           <Container className="flex flex-col gap-1 py-3">
             {NAV_LINKS.map((link) => (

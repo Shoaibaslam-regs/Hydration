@@ -12,7 +12,7 @@ import {
   listMySupportThreads,
   listSupportThreadsForAdmin,
   replyAsAdmin,
-  replyAsShopkeeper,
+  replyAsUser,
   setMySupportThreadStatus,
   setSupportThreadStatusAsAdmin,
 } from "./support";
@@ -32,7 +32,8 @@ describe("support conversations", () => {
     expect(await getNotificationCounts(owner)).toMatchObject({ "/shop/support": 0 });
 
     const forAdmin = await getSupportThreadForAdmin(id);
-    expect(forAdmin).toMatchObject({ shopName: "Blue Spring", shopId: shop.id, unread: true, messages: [{ by: "shopkeeper", authorName: "Ali Raza" }] });
+    expect(forAdmin).toMatchObject({ userRole: "shopkeeper", userName: "Ali Raza", shopName: "Blue Spring", shopId: shop.id, unread: true, messages: [{ by: "shopkeeper", authorName: "Ali Raza" }] });
+    expect(forAdmin!.userPublicId).toMatch(/^SK-/);
     expect(await getNotificationCounts(admin)).toMatchObject({ "/admin/support": 0 }); // opening marks it read
 
     await replyAsAdmin(admin, id, "Thanks, we've approved it.");
@@ -43,7 +44,7 @@ describe("support conversations", () => {
 
     // Resolved, then a shopkeeper reply reopens it and notifies the team again.
     await setSupportThreadStatusAsAdmin(id, "closed");
-    await replyAsShopkeeper(owner, id, "One more question…");
+    await replyAsUser(owner, id, "One more question…");
     expect(await SupportThread.findById(id).lean()).toMatchObject({ status: "open", unreadForAdmin: true });
     await setMySupportThreadStatus(owner.id, id, "closed");
     expect((await listSupportThreadsForAdmin({ page: 1, limit: 20, status: "closed" })).items.map((t) => t.id)).toEqual([id]);
@@ -55,7 +56,7 @@ describe("support conversations", () => {
     const id = await createSupportThread(a, msg);
     expect(await getMySupportThread(b.id, id)).toBeNull();
     expect(await listMySupportThreads(b.id)).toEqual([]);
-    await expect(replyAsShopkeeper(b, id, "hi")).rejects.toMatchObject({ status: 404 });
+    await expect(replyAsUser(b, id, "hi")).rejects.toMatchObject({ status: 404 });
     await expect(setMySupportThreadStatus(b.id, id, "closed")).rejects.toMatchObject({ status: 404 });
     expect(await getMySupportThread(a.id, "not-an-id")).toBeNull();
   });
@@ -64,6 +65,21 @@ describe("support conversations", () => {
     const owner = await createUser("shopkeeper");
     const id = await createSupportThread(owner, { ...msg, category: "shop", subject: "Can't register" });
     expect(await getSupportThreadForAdmin(id)).toMatchObject({ shopId: null, shopName: "" });
+  });
+
+  it("is open to customers too, with their own topics", async () => {
+    const admin = await createUser("admin");
+    const customer = await createUser("customer", "Sara Khan");
+    await expect(createSupportThread(customer, { category: "billing", subject: "Plans?", body: "x" })).rejects.toMatchObject({ status: 400 });
+    const id = await createSupportThread(customer, { category: "complaint", subject: "Late delivery", body: "Order AQ-1234 was 3 hours late." });
+    expect(await getSupportThreadForAdmin(id)).toMatchObject({ userRole: "customer", shopId: null, messages: [{ by: "customer" }] });
+    expect((await listSupportThreadsForAdmin({ page: 1, limit: 20, status: "open", role: "customer" })).total).toBe(1);
+    expect((await listSupportThreadsForAdmin({ page: 1, limit: 20, status: "open", role: "shopkeeper" })).total).toBe(0);
+    await replyAsAdmin(admin, id, "Sorry about that, we've spoken to the shop.");
+    expect(await getNotificationCounts(customer)).toMatchObject({ "/account/support": 1 });
+    expect((await getMySupportThread(customer.id, id))!.messages.at(-1)).toMatchObject({ by: "admin" });
+    expect(await getNotificationCounts(customer)).toMatchObject({ "/account/support": 0 });
+    await expect(createSupportThread(admin, { category: "other", subject: "Hello", body: "x" })).rejects.toMatchObject({ status: 403 });
   });
 
   it("stops at the message limit", async () => {

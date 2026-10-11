@@ -4,6 +4,7 @@ import { PasswordForm, ProfileForm } from "@/components/customer/profile-forms";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { DeleteAccount } from "@/components/account/delete-account";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { IdChip } from "@/components/ui/id-chip";
 import { requireRole } from "@/lib/auth/session";
 import { getProfile } from "@/lib/services/users";
 
@@ -27,6 +28,12 @@ async function ProfileContent() {
         <div>
           <CardTitle>Your details</CardTitle>
           <CardDescription>Signed in as {profile?.email}</CardDescription>
+          {profile?.publicId && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              Your Aqua ID <IdChip id={profile.publicId} />
+              <span className="text-xs text-muted-foreground">Mention it if you contact a shop or the Aqua team.</span>
+            </p>
+          )}
         </div>
         <ProfileForm name={profile?.name ?? ""} phone={profile?.phone ?? ""} />
       </Card>

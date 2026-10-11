@@ -5,16 +5,20 @@ import { canAdminMoveShop, SHOP_REASON_REQUIRED, type ShopStatus } from "@/lib/a
 import { ApiError } from "@/lib/api/errors";
 import type { SessionUser } from "@/lib/auth/session";
 import { connectDB } from "@/lib/db/connect";
+import { publicIdSearchRegex } from "@/lib/ids";
 import { Order, Shop, User } from "@/lib/db/models";
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
 import type { AdminShopListQuery } from "@/lib/validation/admin";
 import { startTrial, toShopSubscription, type ShopSubscription } from "../billing";
 import { removeShopData } from "../shop-removal";
 import { shopTag } from "../shops";
+import { startSupportThreadAsAdmin } from "../support";
 import { listAdminActions, logAdminAction, type AuditEntry } from "./audit";
 
 export type AdminShopSummary = {
   id: string;
+  /** "SH-…" (empty for shops created before IDs existed, until `npm run db:migrate`). */
+  publicId: string;
   slug: string;
   name: string;
   city: string;
@@ -22,7 +26,8 @@ export type AdminShopSummary = {
   status: ShopStatus;
   isClosed: boolean;
   hasVerifiedBadge: boolean;
-  owner: { id: string; name: string; email: string } | null;
+  hasStarAward: boolean;
+  owner: { id: string; publicId: string; name: string; email: string } | null;
   createdAt: string;
 };
 
@@ -44,6 +49,7 @@ export type AdminShopDetail = AdminShopSummary & {
   closure: { by: "shopkeeper" | "admin"; at: string; reason: string } | null;
   plan: ShopSubscription;
   badgeGrantedAt: string | null;
+  starGrantedAt: string | null;
   history: AuditEntry[];
 };
 
@@ -60,12 +66,19 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
   if (query.status) match.status = query.status;
   if (query.q) {
     const rx = new RegExp(escapeRegex(query.q), "i");
-    match.$or = [{ name: rx }, { slug: rx }, { "address.city": rx }, { "address.area": rx }, { phone: rx }];
+    const idRx = publicIdSearchRegex(query.q);
+    match.$or = [{ name: rx }, { slug: rx }, { "address.city": rx }, { "address.area": rx }, { phone: rx }, ...(idRx ? [{ publicId: idRx }] : [])];
+    // A shopkeeper ID ("SK-…") finds their shop.
+    if (idRx?.source.startsWith("^SK")) {
+      const owners = await User.find({ publicId: idRx }, { _id: 1 }).lean();
+      (match.$or as unknown[]).push({ ownerId: { $in: owners.map((o) => o._id) } });
+    }
   }
 
   const [rows, total] = await Promise.all([
     Shop.aggregate<{
       _id: Types.ObjectId;
+      publicId?: string;
       slug: string;
       name: string;
       address: { city: string; area?: string };
@@ -73,6 +86,7 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
       ownerId: Types.ObjectId;
       closure?: { by: string } | null;
       verifiedBadge?: { grantedAt: Date } | null;
+      starAward?: { grantedAt: Date } | null;
       createdAt: Date;
     }>([
       { $match: match },
@@ -89,12 +103,12 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
       { $sort: { statusOrder: 1, createdAt: -1, _id: 1 } },
       { $skip: skipFor(query) },
       { $limit: query.limit },
-      { $project: { slug: 1, name: 1, address: 1, status: 1, ownerId: 1, createdAt: 1, closure: 1, verifiedBadge: 1 } },
+      { $project: { publicId: 1, slug: 1, name: 1, address: 1, status: 1, ownerId: 1, createdAt: 1, closure: 1, verifiedBadge: 1, starAward: 1 } },
     ]),
     Shop.countDocuments(match),
   ]);
 
-  const owners = await User.find({ _id: { $in: rows.map((r) => r.ownerId) } }, { name: 1, email: 1 }).lean();
+  const owners = await User.find({ _id: { $in: rows.map((r) => r.ownerId) } }, { publicId: 1, name: 1, email: 1 }).lean();
   const ownerById = new Map(owners.map((o) => [o._id.toString(), o]));
 
   return paginated(
@@ -102,6 +116,7 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
       const o = ownerById.get(r.ownerId.toString());
       return {
         id: r._id.toString(),
+        publicId: r.publicId ?? "",
         slug: r.slug,
         name: r.name,
         city: r.address.city,
@@ -109,7 +124,8 @@ export async function listAdminShops(query: AdminShopListQuery): Promise<Paginat
         status: r.status,
         isClosed: Boolean(r.closure),
         hasVerifiedBadge: Boolean(r.verifiedBadge),
-        owner: o ? { id: o._id.toString(), name: o.name, email: o.email } : null,
+        hasStarAward: Boolean(r.starAward),
+        owner: o ? { id: o._id.toString(), publicId: o.publicId ?? "", name: o.name, email: o.email } : null,
         createdAt: r.createdAt.toISOString(),
       };
     }),
@@ -124,19 +140,20 @@ export async function getAdminShop(shopId: string): Promise<AdminShopDetail | nu
   const s = await Shop.findById(shopId).lean();
   if (!s) return null;
   const [owner, orderCount, history] = await Promise.all([
-    User.findById(s.ownerId, { name: 1, email: 1, status: 1 }).lean(),
+    User.findById(s.ownerId, { publicId: 1, name: 1, email: 1, status: 1 }).lean(),
     Order.countDocuments({ shopId: s._id }),
     listAdminActions("shop", shopId),
   ]);
   const [lng, lat] = s.location.coordinates;
   return {
     id: s._id.toString(),
+    publicId: s.publicId ?? "",
     slug: s.slug,
     name: s.name,
     city: s.address.city,
     area: s.address.area ?? "",
     status: s.status as ShopStatus,
-    owner: owner ? { id: owner._id.toString(), name: owner.name, email: owner.email } : null,
+    owner: owner ? { id: owner._id.toString(), publicId: owner.publicId ?? "", name: owner.name, email: owner.email } : null,
     createdAt: s.createdAt.toISOString(),
     description: s.description ?? "",
     phone: s.phone,
@@ -149,6 +166,8 @@ export async function getAdminShop(shopId: string): Promise<AdminShopDetail | nu
     isClosed: Boolean(s.closure),
     hasVerifiedBadge: Boolean(s.verifiedBadge),
     badgeGrantedAt: s.verifiedBadge ? s.verifiedBadge.grantedAt.toISOString() : null,
+    hasStarAward: Boolean(s.starAward),
+    starGrantedAt: s.starAward ? s.starAward.grantedAt.toISOString() : null,
     plan: toShopSubscription(s.subscription, new Date()),
     closure: s.closure
       ? { by: s.closure.by as "shopkeeper" | "admin", at: s.closure.at.toISOString(), reason: s.closure.reason ?? "" }
@@ -257,5 +276,45 @@ export async function revokeVerifiedBadge(admin: SessionUser, shopId: string, re
     throw ApiError.conflict("This shop doesn't have the verified badge");
   }
   await logAdminAction(admin, "shop.badge.revoked", "shop", shop._id, reason);
+  revalidateTag(shopTag(shop.slug), { expire: 0 });
+}
+
+/** The standard note sent with a Star shop award when the admin doesn't write one. */
+export const STAR_AWARD_MESSAGE =
+  "Congratulations! The Aqua team has named your shop a ★ Star shop. Customers now see the Star shop mark next to your name. Thank you for the great service, and keep it up!";
+
+/**
+ * Give a shop the public "Star shop" award and congratulate the owner in
+ * their support inbox (with the admin's note, or the standard one).
+ */
+export async function grantStarAward(admin: SessionUser, shopId: string, note = ""): Promise<void> {
+  await connectDB();
+  const shop = await Shop.findOneAndUpdate(
+    { _id: shopId, starAward: null },
+    { $set: { starAward: { grantedAt: new Date(), grantedBy: new Types.ObjectId(admin.id) } } },
+    { projection: { slug: 1, ownerId: 1 } },
+  ).lean();
+  if (!shop) {
+    if (!(await Shop.exists({ _id: shopId }))) throw ApiError.notFound("Shop not found");
+    throw ApiError.conflict("This shop is already a Star shop");
+  }
+  await logAdminAction(admin, "shop.star.granted", "shop", shop._id, note);
+  revalidateTag(shopTag(shop.slug), { expire: 0 });
+  await startSupportThreadAsAdmin(admin, shop.ownerId.toString(), { subject: "You're an Aqua Star shop! ★", body: note || STAR_AWARD_MESSAGE });
+}
+
+/** Take the award back. A reason is required and kept in the admin history. */
+export async function revokeStarAward(admin: SessionUser, shopId: string, reason: string): Promise<void> {
+  await connectDB();
+  const shop = await Shop.findOneAndUpdate(
+    { _id: shopId, starAward: { $ne: null } },
+    { $set: { starAward: null } },
+    { projection: { slug: 1 } },
+  ).lean();
+  if (!shop) {
+    if (!(await Shop.exists({ _id: shopId }))) throw ApiError.notFound("Shop not found");
+    throw ApiError.conflict("This shop isn't a Star shop");
+  }
+  await logAdminAction(admin, "shop.star.revoked", "shop", shop._id, reason);
   revalidateTag(shopTag(shop.slug), { expire: 0 });
 }

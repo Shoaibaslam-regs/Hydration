@@ -7,7 +7,9 @@ import { AuditLog } from "@/components/admin/audit-log";
 import { ResetLinkButton } from "@/components/admin/reset-link-button";
 import { DeleteUser, SuspendUserForm } from "@/components/admin/user-controls";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
+import { AdminMessageForm } from "@/components/support/admin-message-form";
 import { Badge } from "@/components/ui/badge";
+import { IdChip } from "@/components/ui/id-chip";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { SHOP_STATUS_LABELS, SHOP_STATUS_TONES } from "@/lib/admin/shop-status";
 import { requireRole } from "@/lib/auth/session";
@@ -45,6 +47,7 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold">{user.name}</h1>
           <Badge tone="info">{user.role}</Badge>
+          <IdChip id={user.publicId} />
           {user.status === "suspended" && (
             <Badge tone="danger">{user.suspendedUntil ? `Suspended until ${formatDateTime(user.suspendedUntil)}` : "Suspended"}</Badge>
           )}
@@ -94,11 +97,20 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
               <Link href={`/admin/shops/${user.shop.id}`} className="font-medium text-primary hover:underline">
                 {user.shop.name}
               </Link>
+              <IdChip id={user.shop.publicId} />
               <Badge tone={SHOP_STATUS_TONES[user.shop.status]}>{SHOP_STATUS_LABELS[user.shop.status]}</Badge>
             </>
           ) : (
             <span className="text-muted-foreground">Hasn&apos;t registered a shop yet.</span>
           )}
+        </Card>
+      )}
+
+      {(user.role === "customer" || user.role === "shopkeeper") && (
+        <Card className="flex flex-col gap-3">
+          <CardTitle>Send a message</CardTitle>
+          <CardDescription>Write to {user.name} as the Aqua team: a thank-you, a heads-up or a question.</CardDescription>
+          <AdminMessageForm userId={user.id} role={user.role} name={user.name} />
         </Card>
       )}
 

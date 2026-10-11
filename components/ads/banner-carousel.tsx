@@ -48,7 +48,7 @@ export function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
           <a
             href={`/api/ads/click?kind=banner&id=${b.id}`}
             className={cn(
-              "group relative flex min-h-52 overflow-hidden rounded-[calc(1rem-2px)] sm:min-h-60",
+              "group relative flex min-h-36 overflow-hidden rounded-[calc(1rem-2px)] sm:min-h-40",
               onImage ? "bg-black" : "bg-gradient-to-br from-premium-soft via-card to-accent",
             )}
             aria-label={`Advertisement${b.sponsorName ? ` from ${b.sponsorName}` : ""}: ${b.title}. ${b.ctaLabel}`}
@@ -72,7 +72,7 @@ export function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
             )}
 
             {/* Diagonal "Sponsored" ribbon across the top-left corner. */}
-            <span aria-hidden className="pointer-events-none absolute -left-10 top-4 w-36 -rotate-45 bg-premium py-1 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-premium-foreground shadow-md">
+            <span aria-hidden className="pointer-events-none absolute -left-11 top-4 w-40 -rotate-45 bg-premium py-0.5 text-center text-[9px] font-bold uppercase tracking-[0.18em] text-premium-foreground shadow-md">
               Sponsored
             </span>
             <AdChip className={cn("absolute right-3 top-3 bg-background/85 text-foreground backdrop-blur-sm", onImage && "bg-black/40 text-white")} />
@@ -80,15 +80,15 @@ export function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
             <span
               key={b.id}
               className={cn(
-                "animate-banner-in relative flex max-w-2xl flex-col justify-center gap-3 px-6 pb-7 pt-16 sm:px-16 sm:py-10",
+                "animate-banner-in relative flex max-w-2xl flex-col justify-center gap-2 px-6 pb-5 pt-11 sm:px-16 sm:py-6",
                 onImage ? "text-white" : "text-foreground",
               )}
             >
-              <span className="text-3xl font-black uppercase leading-[0.95] tracking-tight sm:text-5xl">{b.title}</span>
-              <span aria-hidden className="h-1 w-16 rounded-full bg-premium" />
-              {b.subtitle && <span className={cn("max-w-lg text-sm sm:text-base", onImage ? "text-white/85" : "text-muted-foreground")}>{b.subtitle}</span>}
-              <span className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
-                <span className="inline-flex items-center gap-1 rounded-full bg-premium px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-premium-foreground shadow-md transition-transform group-hover:translate-x-0.5">
+              <span className="text-xl font-black uppercase leading-tight tracking-tight sm:text-3xl">{b.title}</span>
+              <span aria-hidden className="h-0.5 w-12 rounded-full bg-premium" />
+              {b.subtitle && <span className={cn("line-clamp-2 max-w-lg text-sm", onImage ? "text-white/85" : "text-muted-foreground")}>{b.subtitle}</span>}
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-0.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-premium px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-premium-foreground shadow-md transition-transform group-hover:translate-x-0.5">
                   {b.ctaLabel} →
                 </span>
                 {b.sponsorName && (
@@ -134,7 +134,7 @@ function ArrowButton({ side, onClick, label }: { side: "left" | "right"; onClick
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "absolute top-1/2 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-background/85 text-lg text-foreground shadow-md ring-1 ring-premium/40 backdrop-blur-sm transition-colors hover:bg-premium hover:text-premium-foreground sm:flex",
+        "absolute top-1/2 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/85 text-lg text-foreground shadow-md ring-1 ring-premium/40 backdrop-blur-sm transition-colors hover:bg-premium hover:text-premium-foreground sm:flex",
         side === "left" ? "left-3" : "right-3",
       )}
     >

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { MapPinIcon } from "@/components/ui/icons";
 import type { LatLng } from "@/lib/geo";
 import { DeviceLocationError, getDeviceLocation } from "./device-location";
 import { LocationMap } from "./location-map";
@@ -63,7 +64,8 @@ export function LocationPicker({
         onPick={choose}
         extraButton={
           <Button variant="secondary" onClick={locate} disabled={locating} className="flex-1 whitespace-nowrap sm:flex-none">
-            {locating ? "Locating…" : "📍 My location"}
+            <MapPinIcon />
+            {locating ? "Locating…" : "My location"}
           </Button>
         }
       />

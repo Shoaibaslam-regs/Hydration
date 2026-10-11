@@ -10,7 +10,8 @@ import { Order, Shop, SponsoredCampaign, SubscriptionPayment, SupportThread } fr
  * - admin: shops to approve, plan payments and sponsorship requests to review,
  *   support conversations with unread shopkeeper messages
  * - shopkeeper: new orders to accept or reject, unread replies from the Aqua team
- * - customer: orders the shop updated that the customer hasn't opened yet
+ * - customer: orders the shop updated that the customer hasn't opened yet,
+ *   unread replies from the Aqua team
  */
 export async function getNotificationCounts(user: SessionUser): Promise<Record<string, number>> {
   await connectDB();
@@ -27,11 +28,15 @@ export async function getNotificationCounts(user: SessionUser): Promise<Record<s
     const ownerId = new Types.ObjectId(user.id);
     const [shop, replies] = await Promise.all([
       Shop.findOne({ ownerId }, { _id: 1 }).lean(),
-      SupportThread.countDocuments({ shopkeeperId: ownerId, unreadForShopkeeper: true }),
+      SupportThread.countDocuments({ userId: ownerId, unreadForUser: true }),
     ]);
     const newOrders = shop ? await Order.countDocuments({ shopId: shop._id, status: "pending" }) : 0;
     return { "/shop/orders": newOrders, "/shop/support": replies };
   }
-  const unread = await Order.countDocuments({ customerId: new Types.ObjectId(user.id), customerUnread: true });
-  return { "/account/orders": unread };
+  const customerId = new Types.ObjectId(user.id);
+  const [unread, replies] = await Promise.all([
+    Order.countDocuments({ customerId, customerUnread: true }),
+    SupportThread.countDocuments({ userId: customerId, unreadForUser: true }),
+  ]);
+  return { "/account/orders": unread, "/account/support": replies };
 }

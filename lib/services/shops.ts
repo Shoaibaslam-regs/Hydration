@@ -29,6 +29,8 @@ export type ShopSummary = {
   isClosed: boolean;
   /** Admin-granted "Verified" trust badge. */
   hasVerifiedBadge: boolean;
+  /** Admin-given "Star shop" award. */
+  hasStarAward: boolean;
   /** The shop's running deal that ends last, if any. */
   deal: { title: string; endsAt: string } | null;
 };
@@ -63,6 +65,7 @@ export type ShopRow = {
   distanceMeters?: number;
   closure?: { by: string; reason?: string | null } | null;
   verifiedBadge?: { grantedAt: Date } | null;
+  starAward?: { grantedAt: Date } | null;
   featuredDeal?: { title: string; endsAt: Date } | null;
 };
 
@@ -82,6 +85,7 @@ export function toShopSummary(row: ShopRow): ShopSummary {
     distanceKm: row.distanceMeters === undefined ? null : row.distanceMeters / 1000,
     isClosed: Boolean(row.closure),
     hasVerifiedBadge: Boolean(row.verifiedBadge),
+    hasStarAward: Boolean(row.starAward),
     deal:
       row.featuredDeal && row.featuredDeal.endsAt > new Date()
         ? { title: row.featuredDeal.title, endsAt: row.featuredDeal.endsAt.toISOString() }

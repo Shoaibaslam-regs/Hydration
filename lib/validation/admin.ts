@@ -45,6 +45,12 @@ export const adminOrderListSchema = paginationSchema.extend({
 });
 export type AdminOrderListQuery = z.infer<typeof adminOrderListSchema>;
 
+/** /admin/orders: shops with orders. `q` = shop name/area/city, `order` = jump to an order number. */
+export const adminOrderShopsSchema = paginationSchema.extend({
+  q: z.preprocess(blank, z.string().trim().max(80).optional()),
+  order: z.preprocess(blank, z.string().trim().max(40).optional()),
+});
+
 export const adminOrderCancelSchema = z.object({
   reason: z.string().trim().min(1, "Give a reason").max(300),
 });
@@ -64,6 +70,12 @@ export const adminShopRemoveSchema = z.object({
 
 export const adminShopBadgeSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("grant"), reason: z.string().trim().max(300).default("") }),
+  z.object({ action: z.literal("revoke"), reason: z.string().trim().min(1, "Give a reason").max(300) }),
+]);
+
+/** Grant carries an optional note sent to the shopkeeper; revoke needs a reason. */
+export const adminShopStarSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("grant"), message: z.string().trim().max(2000).default("") }),
   z.object({ action: z.literal("revoke"), reason: z.string().trim().min(1, "Give a reason").max(300) }),
 ]);
 

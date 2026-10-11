@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { SupportHelpBox } from "@/components/support/help-box";
 
 export default function CustomerLayout({ children }: LayoutProps<"/">) {
   return (
@@ -11,7 +12,9 @@ export default function CustomerLayout({ children }: LayoutProps<"/">) {
         { href: "/account/favorites", label: "Saved shops" },
         { href: "/account/addresses", label: "Addresses" },
         { href: "/account/profile", label: "Profile" },
+        { href: "/account/support", label: "Contact Aqua", highlight: true },
       ]}
+      navFooter={<SupportHelpBox role="customer" />}
     >
       {children}
     </DashboardShell>

@@ -1,7 +1,7 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
 import type { Types } from "mongoose";
-import { Order, Review, Shop, User } from "@/lib/db/models";
+import { Order, Review, Shop, StarCustomer, User } from "@/lib/db/models";
 import { FINAL_ORDER_STATUSES, ORDER_STATUSES } from "@/lib/orders/status";
 import { shopTag } from "./shops";
 
@@ -27,6 +27,7 @@ export async function removeShopData(
   );
   await Promise.all([
     Review.deleteMany({ shopId: shop._id }),
+    StarCustomer.deleteMany({ shopId: shop._id }),
     User.updateMany({ favoriteShopIds: shop._id }, { $pull: { favoriteShopIds: shop._id } }),
   ]);
   await Shop.deleteOne({ _id: shop._id });

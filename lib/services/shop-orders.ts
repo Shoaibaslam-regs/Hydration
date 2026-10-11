@@ -3,7 +3,7 @@ import { Types } from "mongoose";
 import { ApiError } from "@/lib/api/errors";
 import type { ProductType } from "@/lib/catalog";
 import { connectDB } from "@/lib/db/connect";
-import { Order } from "@/lib/db/models";
+import { Order, User } from "@/lib/db/models";
 import {
   canShopkeeperMove,
   FINAL_ORDER_STATUSES,
@@ -14,6 +14,7 @@ import {
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
 import type { OrderListQuery, OrderStatusUpdate } from "@/lib/validation/shopkeeper";
 import type { MyShop } from "./my-shop";
+import { starredCustomerIds } from "./star-customers";
 
 export type ShopOrderSummary = {
   id: string;
@@ -23,6 +24,10 @@ export type ShopOrderSummary = {
   total: number;
   itemCount: number;
   contactName: string;
+  /** The customer's "CU-…" ID, so the shop can quote it to support (empty if the account is gone). */
+  customerPublicId: string;
+  /** The shop tagged this customer as a regular ("Star customer"). */
+  isStarCustomer: boolean;
   place: string;
   createdAt: string;
 };
@@ -40,6 +45,7 @@ export type ShopOrderDetail = ShopOrderSummary & {
 
 type OrderLean = {
   _id: Types.ObjectId;
+  customerId: Types.ObjectId;
   orderNumber: string;
   status: string;
   total: number;
@@ -54,7 +60,7 @@ type OrderLean = {
   createdAt: Date;
 };
 
-function toSummary(o: OrderLean): ShopOrderSummary {
+function toSummary(o: OrderLean, customerPublicId = "", isStarCustomer = false): ShopOrderSummary {
   return {
     id: o._id.toString(),
     orderNumber: o.orderNumber,
@@ -62,15 +68,17 @@ function toSummary(o: OrderLean): ShopOrderSummary {
     total: o.total,
     itemCount: o.items.reduce((n, i) => n + i.quantity, 0),
     contactName: o.contactName,
+    customerPublicId,
+    isStarCustomer,
     place: [o.deliveryAddress.area, o.deliveryAddress.city].filter(Boolean).join(", "),
     createdAt: o.createdAt.toISOString(),
   };
 }
 
-function toDetail(o: OrderLean): ShopOrderDetail {
+function toDetail(o: OrderLean, customerPublicId = "", isStarCustomer = false): ShopOrderDetail {
   const status = o.status as OrderStatus;
   return {
-    ...toSummary(o),
+    ...toSummary(o, customerPublicId, isStarCustomer),
     items: o.items.map((i) => ({
       name: i.name,
       type: i.type as ProductType,
@@ -107,14 +115,28 @@ export async function listShopOrders(shop: MyShop, query: OrderListQuery): Promi
     Order.find(filter, { statusHistory: 0 }).sort({ createdAt: -1, _id: -1 }).skip(skipFor(query)).limit(query.limit).lean(),
     Order.countDocuments(filter),
   ]);
-  return paginated(items.map((o) => toSummary(o as unknown as OrderLean)), total, query);
+  const customers = items.map((o) => o.customerId);
+  const [ids, stars] = await Promise.all([customerPublicIds(customers), starredCustomerIds(shop.id, customers)]);
+  return paginated(
+    items.map((o) => toSummary(o as unknown as OrderLean, ids.get(o.customerId.toString()), stars.has(o.customerId.toString()))),
+    total,
+    query,
+  );
+}
+
+/** customerId → "CU-…" for a page of orders, in one query. */
+async function customerPublicIds(customerIds: Types.ObjectId[]): Promise<Map<string, string>> {
+  const users = await User.find({ _id: { $in: customerIds } }, { publicId: 1 }).lean();
+  return new Map(users.map((u) => [u._id.toString(), u.publicId ?? ""]));
 }
 
 export async function getShopOrder(shop: MyShop, orderId: string): Promise<ShopOrderDetail | null> {
   if (!Types.ObjectId.isValid(orderId)) return null;
   await connectDB();
   const o = await Order.findOne({ _id: orderId, shopId: shop.id }).lean();
-  return o ? toDetail(o as unknown as OrderLean) : null;
+  if (!o) return null;
+  const [ids, stars] = await Promise.all([customerPublicIds([o.customerId]), starredCustomerIds(shop.id, [o.customerId])]);
+  return toDetail(o as unknown as OrderLean, ids.get(o.customerId.toString()), stars.has(o.customerId.toString()));
 }
 
 /**

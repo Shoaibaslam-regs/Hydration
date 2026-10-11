@@ -22,26 +22,24 @@ export async function registerUser(
   input: Omit<RegisterInput, "role"> & { role: UserRole },
 ): Promise<AuthenticatedUser> {
   await connectDB();
-  try {
-    const user = await User.create({
-      name: input.name,
-      email: input.email,
-      phone: input.phone,
-      role: input.role,
-      passwordHash: await hashPassword(input.password),
-    });
-    return {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      role: user.role as UserRole,
-      sessionVersion: user.sessionVersion,
-    };
-  } catch (err) {
-    if ((err as { code?: number }).code === DUPLICATE_KEY) {
-      throw ApiError.conflict("An account with this email already exists");
+  const passwordHash = await hashPassword(input.password);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const user = await User.create({ name: input.name, email: input.email, phone: input.phone, role: input.role, passwordHash });
+      return {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role as UserRole,
+        sessionVersion: user.sessionVersion,
+      };
+    } catch (err) {
+      const e = err as { code?: number; keyPattern?: Record<string, unknown> };
+      // A public ID collision (very unlikely): a fresh one is drawn on the next try.
+      if (e.code === DUPLICATE_KEY && e.keyPattern?.publicId && attempt < 3) continue;
+      if (e.code === DUPLICATE_KEY) throw ApiError.conflict("An account with this email already exists");
+      throw err;
     }
-    throw err;
   }
 }
 
@@ -80,10 +78,10 @@ export async function updateProfile(userId: string, input: { name: string; phone
   );
 }
 
-export async function getProfile(userId: string): Promise<{ name: string; email: string; phone: string } | null> {
+export async function getProfile(userId: string): Promise<{ name: string; email: string; phone: string; publicId: string } | null> {
   await connectDB();
-  const u = await User.findById(userId, { name: 1, email: 1, phone: 1 }).lean();
-  return u ? { name: u.name, email: u.email, phone: u.phone ?? "" } : null;
+  const u = await User.findById(userId, { name: 1, email: 1, phone: 1, publicId: 1 }).lean();
+  return u ? { name: u.name, email: u.email, phone: u.phone ?? "", publicId: u.publicId ?? "" } : null;
 }
 
 /**

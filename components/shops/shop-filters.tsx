@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { DeviceLocationError, getDeviceLocation } from "@/components/map/device-location";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
+import { MapPinIcon } from "@/components/ui/icons";
 import { CURRENCY, DEFAULT_RADIUS_KM, MAX_RADIUS_KM } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 
@@ -95,7 +96,8 @@ export function ShopFilters() {
                 {pending ? "Searching…" : "Search"}
               </Button>
               <Button variant="secondary" onClick={locateMe} disabled={locating} className="flex-1 whitespace-nowrap sm:flex-none">
-                {locating ? "Locating…" : "📍 Use my location"}
+                <MapPinIcon />
+                {locating ? "Locating…" : "Use my location"}
               </Button>
             </div>
           </div>

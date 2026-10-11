@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { MyShop } from "@/lib/services/my-shop";
+import { StarShopBadge } from "@/components/shops/star-badge";
 import { VerifiedBadge } from "@/components/shops/verified-badge";
 import { formatDateTime } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,11 @@ export function ShopStatusBanner({ shop }: { shop: MyShop }) {
       {shop.hasVerifiedBadge && (
         <p className="flex flex-wrap items-center gap-1.5 text-sm">
           <VerifiedBadge compact /> Your shop has the Aqua verified badge, shown to customers next to its name.
+        </p>
+      )}
+      {shop.hasStarAward && (
+        <p className="flex flex-wrap items-center gap-1.5 text-sm">
+          <StarShopBadge compact /> The Aqua team named you a Star shop. Customers see the mark on your shop.
         </p>
       )}
       {shop.statusReason && (shop.status === "rejected" || shop.status === "suspended") && (

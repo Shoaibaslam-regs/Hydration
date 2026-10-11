@@ -5,8 +5,10 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderActions } from "@/components/shopkeeper/order-actions";
+import { StarCustomerToggle } from "@/components/shopkeeper/star-customer-toggle";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Card, CardTitle } from "@/components/ui/card";
+import { IdChip } from "@/components/ui/id-chip";
 import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
 import { formatDateTime, formatPrice, PRODUCT_TYPE_LABELS } from "@/lib/catalog";
 import { ORDER_STATUS_LABELS } from "@/lib/orders/status";
@@ -97,7 +99,11 @@ async function OrderDetail({ params }: { params: PageProps<"/shop/orders/[id]">[
         <div className="flex flex-col gap-6">
           <Card className="flex flex-col gap-2 text-sm">
             <CardTitle>Deliver to</CardTitle>
-            <p className="font-medium">{order.contactName}</p>
+            <p className="flex flex-wrap items-center gap-2 font-medium">
+              {order.contactName}
+              <IdChip id={order.customerPublicId} />
+            </p>
+            {order.customerPublicId && <StarCustomerToggle orderId={order.id} initial={order.isStarCustomer} />}
             <a href={`tel:${order.contactPhone}`} className="text-primary hover:underline">
               {order.contactPhone}
             </a>

@@ -7,12 +7,15 @@
 //     `pricePerCan`, if they don't have a price yet.
 //  3. Removes leftover catalog fields from shops and the old platform switch.
 //  4. Rebuilds every shop's `searchText` (name + address) for area search.
+//  5. Gives a public ID ("CU-…", "SK-…", "AD-…", "SH-…") to accounts and shops that don't have one.
+//  6. Moves support conversations from the shopkeeper-only fields to the shared ones (support is open to customers too).
 // The old `products` collection is left in place; drop it by hand once you're happy.
 import mongoose from "mongoose";
 import { connectDB } from "../lib/db/connect";
 import { PlatformSettings, Shop } from "../lib/db/models";
 import { TRIAL_DAYS, TRIAL_PLAN_ID } from "../lib/plans";
 import { shopSearchText } from "../lib/search/text";
+import { backfillPublicIds } from "../lib/services/public-ids";
 
 async function main() {
   await connectDB();
@@ -46,6 +49,15 @@ async function main() {
   const all = await Shop.find({}, { name: 1, address: 1 }).lean();
   for (const shop of all) await Shop.updateOne({ _id: shop._id }, { $set: { searchText: shopSearchText(shop) } });
   console.log(`Search text rebuilt for ${all.length} shops.`);
+
+  const ids = await backfillPublicIds();
+  console.log(`Public IDs given: ${ids.users} accounts, ${ids.shops} shops.`);
+
+  const threads = await db.collection("supportthreads").updateMany(
+    { shopkeeperId: { $exists: true } },
+    { $rename: { shopkeeperId: "userId", unreadForShopkeeper: "unreadForUser", hiddenForShopkeeper: "hiddenForUser" }, $set: { userRole: "shopkeeper" } },
+  );
+  console.log(`Support conversations updated: ${threads.modifiedCount}`);
   await mongoose.disconnect();
 }
 

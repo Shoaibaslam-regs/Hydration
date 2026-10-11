@@ -13,6 +13,10 @@ export type AdminAction = {
   /** Request body; the reason (if any) is added under `reasonKey`. */
   body: Record<string, unknown>;
   needsReason?: boolean;
+  /** Label for the text box (default "Reason: <action>"). */
+  reasonLabel?: string;
+  /** The text box may be left empty (e.g. an optional note). */
+  reasonOptional?: boolean;
   danger?: boolean;
   confirm?: string;
 };
@@ -83,11 +87,11 @@ export function AdminActions({
       <FormError message={error} />
       {asking ? (
         <>
-          <Field label={`Reason: ${asking.label.toLowerCase()}`} hint={reasonHint}>
+          <Field label={asking.reasonLabel ?? `Reason: ${asking.label.toLowerCase()}`} hint={reasonHint}>
             {(p) => <Textarea {...p} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} autoFocus />}
           </Field>
           <div className="flex flex-wrap gap-2">
-            <Button variant={asking.danger ? "danger" : "primary"} onClick={() => run(asking)} disabled={pending || reason.trim() === ""}>
+            <Button variant={asking.danger ? "danger" : "primary"} onClick={() => run(asking)} disabled={pending || (!asking.reasonOptional && reason.trim() === "")}>
               {pending ? "Saving…" : `Confirm: ${asking.label}`}
             </Button>
             <Button variant="ghost" onClick={() => setAsking(null)} disabled={pending}>

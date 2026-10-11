@@ -81,7 +81,7 @@ export function PlaceSearch({
         </div>
       </div>
       {hits && hits.length > 0 && (
-        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card" aria-label="Places found">
+        <ul className="glass-panel divide-y divide-border/60 overflow-hidden rounded-xl border" aria-label="Places found">
           {hits.map((h) => (
             <li key={`${h.lat},${h.lng}`}>
               <button

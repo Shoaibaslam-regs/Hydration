@@ -16,6 +16,8 @@ export type SessionUser = {
   name: string;
   email: string;
   role: UserRole;
+  /** "CU-…" / "SK-…" / "AD-…"; may be missing on accounts not yet backfilled. */
+  publicId?: string;
 };
 
 export async function createSession(user: { id: string; role: UserRole; sessionVersion: number }) {
@@ -49,10 +51,10 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!claims) return null;
 
   await connectDB();
-  const user = await User.findById(claims.sub, { name: 1, email: 1, role: 1, status: 1, suspendedUntil: 1, sessionVersion: 1 }).lean();
+  const user = await User.findById(claims.sub, { publicId: 1, name: 1, email: 1, role: 1, status: 1, suspendedUntil: 1, sessionVersion: 1 }).lean();
   if (!user || isSuspended(user, new Date()) || user.sessionVersion !== claims.ver) return null;
 
-  return { id: user._id.toString(), name: user.name, email: user.email, role: user.role as UserRole };
+  return { id: user._id.toString(), name: user.name, email: user.email, role: user.role as UserRole, publicId: user.publicId ?? undefined };
 });
 
 /** For pages: the signed-in user with one of `roles`, else redirect (to login, or to their own dashboard). */

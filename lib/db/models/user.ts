@@ -1,10 +1,13 @@
 import { Schema, model, models, type InferSchemaType } from "mongoose";
 import { USER_ROLES } from "@/lib/auth/roles";
+import { generatePublicId } from "@/lib/ids";
 
 export const USER_STATUSES = ["active", "suspended"] as const;
 
 const userSchema = new Schema(
   {
+    /** Short public ID ("CU-7K2M9X" / "SK-…" / "AD-…"), shown to the user and to admins. Set on create. */
+    publicId: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
     name: { type: String, required: true, trim: true, maxlength: 80 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, trim: true },
@@ -22,6 +25,10 @@ const userSchema = new Schema(
 );
 
 userSchema.index({ role: 1, createdAt: -1 });
+
+userSchema.pre("validate", async function () {
+  if (!this.publicId) this.publicId = generatePublicId((this.role as "customer" | "shopkeeper" | "admin") ?? "customer");
+});
 
 export type UserDoc = InferSchemaType<typeof userSchema>;
 

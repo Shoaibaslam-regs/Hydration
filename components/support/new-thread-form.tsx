@@ -6,10 +6,16 @@ import { FormError } from "@/components/auth/form-error";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
-import { MAX_SUPPORT_MESSAGE_LENGTH, SUPPORT_CATEGORIES, SUPPORT_CATEGORY_LABELS } from "@/lib/support/constants";
+import {
+  MAX_SUPPORT_MESSAGE_LENGTH,
+  SUPPORT_CATEGORIES_FOR,
+  SUPPORT_CATEGORY_LABELS,
+  SUPPORT_PATH,
+  type SupportUserRole,
+} from "@/lib/support/constants";
 
-/** Start a conversation with the Aqua team. `compact` fits a dashboard card. */
-export function NewSupportThreadForm({ compact = false }: { compact?: boolean }) {
+/** Start a conversation with the Aqua team. Topics depend on who's writing; `compact` fits a dashboard card. */
+export function NewSupportThreadForm({ role, compact = false }: { role: SupportUserRole; compact?: boolean }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +26,7 @@ export function NewSupportThreadForm({ compact = false }: { compact?: boolean })
     const f = new FormData(e.currentTarget);
     setPending(true);
     setError(null);
-    const result = await apiRequest<{ id: string }>("/api/shopkeeper/support", {
+    const result = await apiRequest<{ id: string }>("/api/support", {
       body: { category: f.get("category"), subject: f.get("subject"), body: f.get("body") },
     });
     if (!result.ok) {
@@ -29,7 +35,7 @@ export function NewSupportThreadForm({ compact = false }: { compact?: boolean })
       setFieldErrors(result.fieldErrors);
       return;
     }
-    router.push(`/shop/support/${result.data.id}?sent=1`);
+    router.push(`${SUPPORT_PATH[role]}/${result.data.id}?sent=1`);
     router.refresh();
   }
 
@@ -40,7 +46,7 @@ export function NewSupportThreadForm({ compact = false }: { compact?: boolean })
         <Field label="About" error={fieldErrors.category?.[0]}>
           {(p) => (
             <Select {...p} name="category" defaultValue="other">
-              {SUPPORT_CATEGORIES.map((c) => (
+              {SUPPORT_CATEGORIES_FOR[role].map((c) => (
                 <option key={c} value={c}>
                   {SUPPORT_CATEGORY_LABELS[c]}
                 </option>
@@ -49,7 +55,7 @@ export function NewSupportThreadForm({ compact = false }: { compact?: boolean })
           )}
         </Field>
         <Field label="Subject" error={fieldErrors.subject?.[0]}>
-          {(p) => <Input {...p} name="subject" maxLength={120} placeholder="e.g. My payment isn't showing" required />}
+          {(p) => <Input {...p} name="subject" maxLength={120} placeholder={role === "customer" ? "e.g. My order didn't arrive" : "e.g. My payment isn't showing"} required />}
         </Field>
       </div>
       <Field label="Message" error={fieldErrors.body?.[0]}>
@@ -59,7 +65,11 @@ export function NewSupportThreadForm({ compact = false }: { compact?: boolean })
             name="body"
             rows={compact ? 3 : 5}
             maxLength={MAX_SUPPORT_MESSAGE_LENGTH}
-            placeholder="Tell us what's happening. Include order numbers or payment references if you have them."
+            placeholder={
+              role === "customer"
+                ? "Tell us what's happening. Include the order number and shop name if it's about an order."
+                : "Tell us what's happening. Include order numbers or payment references if you have them."
+            }
             required
           />
         )}

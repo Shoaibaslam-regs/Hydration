@@ -1,4 +1,5 @@
 import { Schema, model, models, type InferSchemaType } from "mongoose";
+import { generatePublicId } from "@/lib/ids";
 import { SLUG_PATTERN } from "@/lib/validation/shops";
 
 export const SHOP_STATUSES = ["pending", "verified", "rejected", "suspended"] as const;
@@ -35,6 +36,8 @@ const shopSchema = new Schema(
   {
     // One shop per shopkeeper account.
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+    /** Short public ID ("SH-4F7HQ2"), shown to the shopkeeper and to admins. Set on create. */
+    publicId: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
     name: { type: String, required: true, trim: true, maxlength: 120 },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true, match: SLUG_PATTERN },
     description: { type: String, default: "", maxlength: 2000 },
@@ -83,6 +86,17 @@ const shopSchema = new Schema(
       default: null,
     },
     /**
+     * Public "Star shop" award an admin gives to an outstanding shop (shown on
+     * cards and the shop page). Separate from the Verified badge; null when absent.
+     */
+    starAward: {
+      type: new Schema(
+        { grantedAt: { type: Date, required: true }, grantedBy: { type: Schema.Types.ObjectId, ref: "User", required: true } },
+        { _id: false },
+      ),
+      default: null,
+    },
+    /**
      * Current plan: the free trial (planId "trial", started on first approval)
      * or a paid period set when an admin approves a subscription payment.
      * Shops are listed and take orders only while `endsAt` is in the future.
@@ -103,6 +117,10 @@ const shopSchema = new Schema(
 );
 
 shopSchema.index({ location: "2dsphere" });
+
+shopSchema.pre("validate", async function () {
+  if (!this.publicId) this.publicId = generatePublicId("shop");
+});
 shopSchema.index({ status: 1, "rating.average": -1 });
 shopSchema.index({ status: 1, "address.city": 1 });
 shopSchema.index({ "subscription.endsAt": 1 });

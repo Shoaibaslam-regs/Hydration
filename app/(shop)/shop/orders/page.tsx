@@ -7,10 +7,13 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Pagination } from "@/components/ui/pagination";
+import { IdChip } from "@/components/ui/id-chip";
+import { StarCustomerBadge } from "@/components/shops/star-badge";
 import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/orders/status";
 import { listShopOrders } from "@/lib/services/shop-orders";
+import { listMyStarCustomers } from "@/lib/services/star-customers";
 import { cn } from "@/lib/utils";
 import { orderListQuerySchema } from "@/lib/validation/shopkeeper";
 
@@ -51,7 +54,7 @@ async function OrdersContent({ searchParams }: { searchParams: PageProps<"/shop/
   const { shop } = await requireShopkeeperShop("/shop/orders");
   const parsed = orderListQuerySchema.safeParse(await searchParams);
   const query = parsed.success ? parsed.data : orderListQuerySchema.parse({});
-  const result = await listShopOrders(shop, query);
+  const [result, stars] = await Promise.all([listShopOrders(shop, query), listMyStarCustomers(shop.id)]);
 
   const hrefFor = (page: number) => {
     const qs = new URLSearchParams();
@@ -62,6 +65,20 @@ async function OrdersContent({ searchParams }: { searchParams: PageProps<"/shop/
 
   return (
     <>
+      {stars.length > 0 && (
+        <details className="rounded-xl border border-award/30 bg-award-soft px-4 py-3 text-sm">
+          <summary className="cursor-pointer font-semibold text-award">★ Your star customers ({stars.length})</summary>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {stars.map((c) => (
+              <li key={c.publicId} className="flex items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 ring-1 ring-border">
+                <span className="font-medium">{c.name}</span>
+                <IdChip id={c.publicId} />
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted-foreground">Tag or untag a customer from one of their orders.</p>
+        </details>
+      )}
       <nav aria-label="Filter by status" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
         <ul className="flex gap-1">
           {TABS.map((tab) => {
@@ -100,8 +117,12 @@ async function OrdersContent({ searchParams }: { searchParams: PageProps<"/shop/
                 >
                   <span className="flex min-w-0 flex-col">
                     <span className="font-medium">{o.orderNumber}</span>
-                    <span className="truncate text-sm text-muted-foreground">
-                      {o.contactName} · {o.place} · {o.itemCount} {o.itemCount === 1 ? "item" : "items"}
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                      <span className="truncate">
+                        {o.contactName} · {o.place} · {o.itemCount} {o.itemCount === 1 ? "can" : "cans"}
+                      </span>
+                      <IdChip id={o.customerPublicId} />
+                      {o.isStarCustomer && <StarCustomerBadge />}
                     </span>
                     <span className="text-xs text-muted-foreground">{formatDateTime(o.createdAt)}</span>
                   </span>

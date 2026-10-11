@@ -27,7 +27,7 @@ export default function AdminSupportPage({ searchParams }: PageProps<"/admin/sup
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold">Support</h1>
-        <p className="text-muted-foreground">Messages from shopkeepers. Unread conversations come first.</p>
+        <p className="text-muted-foreground">Messages from customers and shopkeepers. Unread conversations come first.</p>
       </div>
       <Suspense fallback={<PageSkeleton />}>
         <SupportInbox searchParams={searchParams} />
@@ -42,13 +42,29 @@ async function SupportInbox({ searchParams }: { searchParams: PageProps<"/admin/
   const query = parsed.success ? parsed.data : adminSupportListSchema.parse({});
   const status = query.status ?? "open";
   const result = await listSupportThreadsForAdmin({ ...query, status });
+  const href = (over: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries({ status: status === "open" ? undefined : status, role: query.role, ...over })) if (v) qs.set(k, v);
+    const q = qs.toString();
+    return q ? `/admin/support?${q}` : "/admin/support";
+  };
 
   return (
     <>
-      <FilterTabs
-        label="Conversation status"
-        tabs={TABS.map((t) => ({ label: t.label, href: t.status === "open" ? "/admin/support" : `/admin/support?status=${t.status}`, active: status === t.status }))}
-      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <FilterTabs
+          label="Conversation status"
+          tabs={TABS.map((t) => ({ label: t.label, href: href({ status: t.status === "open" ? undefined : t.status }), active: status === t.status }))}
+        />
+        <FilterTabs
+          label="Who wrote in"
+          tabs={[
+            { label: "Everyone", href: href({ role: undefined }), active: !query.role },
+            { label: "Customers", href: href({ role: "customer" }), active: query.role === "customer" },
+            { label: "Shopkeepers", href: href({ role: "shopkeeper" }), active: query.role === "shopkeeper" },
+          ]}
+        />
+      </div>
       {result.items.length === 0 ? (
         <EmptyState title={status === "open" ? "No open conversations" : "Nothing here yet"} />
       ) : (
@@ -63,7 +79,8 @@ async function SupportInbox({ searchParams }: { searchParams: PageProps<"/admin/
                       <span className="truncate">{t.subject}</span>
                     </span>
                     <span className="flex items-center gap-2">
-                      {t.lastMessageBy === "shopkeeper" && t.status === "open" && <Badge tone="warning">Needs reply</Badge>}
+                      <Badge tone={t.userRole === "customer" ? "neutral" : "info"}>{t.userRole === "customer" ? "Customer" : "Shopkeeper"}</Badge>
+                      {t.lastMessageBy !== "admin" && t.status === "open" && <Badge tone="warning">Needs reply</Badge>}
                       <Badge tone={t.status === "open" ? "info" : "neutral"}>{t.status === "open" ? "Open" : "Resolved"}</Badge>
                     </span>
                   </span>
@@ -72,7 +89,9 @@ async function SupportInbox({ searchParams }: { searchParams: PageProps<"/admin/
                     {t.preview}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {t.shopName || "No shop yet"} · {SUPPORT_CATEGORY_LABELS[t.category]} · {t.messageCount} {t.messageCount === 1 ? "message" : "messages"} ·{" "}
+                    {t.userName}
+                    {t.userPublicId && ` · ${t.userRole === "customer" ? "Customer" : "Shopkeeper"} ID ${t.userPublicId}`}
+                    {t.userRole === "shopkeeper" && ` · ${t.shopName || "no shop yet"}`} · {SUPPORT_CATEGORY_LABELS[t.category]} · {t.messageCount} {t.messageCount === 1 ? "message" : "messages"} ·{" "}
                     {formatDateTime(t.lastMessageAt)}
                   </span>
                 </Link>
@@ -81,7 +100,7 @@ async function SupportInbox({ searchParams }: { searchParams: PageProps<"/admin/
           </ul>
         </Card>
       )}
-      <Pagination page={result.page} totalPages={result.totalPages} hrefFor={(p) => `/admin/support?status=${status}&page=${p}`} />
+      <Pagination page={result.page} totalPages={result.totalPages} hrefFor={(p) => href({ page: String(p) })} />
     </>
   );
 }

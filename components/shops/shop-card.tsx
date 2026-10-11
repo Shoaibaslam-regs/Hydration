@@ -6,8 +6,11 @@ import { Card } from "@/components/ui/card";
 import { CAN_SIZE_LITERS, formatDistance, formatPrice } from "@/lib/catalog";
 import type { ShopSummary } from "@/lib/services/shops";
 import { cn } from "@/lib/utils";
+import { isOpenAt } from "@/lib/shops/hours";
+import { HoursPill } from "./hours-status";
 import { Rating } from "./rating";
 import { ShopAvatar } from "./shop-avatar";
+import { StarShopBadge } from "./star-badge";
 import { VerifiedBadge } from "./verified-badge";
 
 /**
@@ -42,7 +45,11 @@ function RegularShopCard({ shop }: { shop: ShopSummary }) {
         {shop.distanceKm !== null && <span className="shrink-0 text-sm font-medium text-primary">{formatDistance(shop.distanceKm)}</span>}
       </div>
 
-      <Rating average={shop.rating.average} count={shop.rating.count} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Rating average={shop.rating.average} count={shop.rating.count} />
+        {shop.hasStarAward && <StarShopBadge compact />}
+        {!shop.isClosed && <HoursPill open={isOpenAt(shop.hours, new Date())} hours={shop.hours} size="sm" />}
+      </div>
       {shop.deal && <DealTag title={shop.deal.title} />}
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-sm">
@@ -96,8 +103,10 @@ function SponsoredShopCard({ shop }: { shop: ShopSummary }) {
             {shop.hasVerifiedBadge && <VerifiedBadge compact />}
           </h3>
           <p className="truncate text-sm text-muted-foreground">{place(shop)}</p>
-          <div className="mt-1">
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             <Rating average={shop.rating.average} count={shop.rating.count} />
+            {shop.hasStarAward && <StarShopBadge compact />}
+            {!shop.isClosed && <HoursPill open={isOpenAt(shop.hours, new Date())} hours={shop.hours} size="sm" />}
           </div>
         </div>
       </div>

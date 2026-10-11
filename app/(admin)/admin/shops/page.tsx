@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
+import { StarShopBadge } from "@/components/shops/star-badge";
 import { VerifiedBadge } from "@/components/shops/verified-badge";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/button";
+import { IdChip } from "@/components/ui/id-chip";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterTabs } from "@/components/ui/filter-tabs";
@@ -56,7 +58,7 @@ async function ShopsContent({ searchParams }: { searchParams: PageProps<"/admin/
       />
       <form action="/admin/shops" className="flex gap-2">
         {query.status && <input type="hidden" name="status" value={query.status} />}
-        <Input name="q" type="search" placeholder="Search name, city, area, phone" defaultValue={query.q ?? ""} aria-label="Search shops" />
+        <Input name="q" type="search" placeholder="Search name, city, area, phone or ID (SH-…, SK-…)" defaultValue={query.q ?? ""} aria-label="Search shops" />
         <button type="submit" className={buttonClasses({ variant: "secondary" })}>
           Search
         </button>
@@ -71,12 +73,14 @@ async function ShopsContent({ searchParams }: { searchParams: PageProps<"/admin/
               <li key={s.id}>
                 <Link href={`/admin/shops/${s.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-muted/50">
                   <span className="flex min-w-0 flex-col">
-                    <span className="flex items-center gap-1.5 font-medium">
+                    <span className="flex flex-wrap items-center gap-1.5 font-medium">
                       {s.name}
                       {s.hasVerifiedBadge && <VerifiedBadge compact />}
+                      {s.hasStarAward && <StarShopBadge compact />}
+                      <IdChip id={s.publicId} />
                     </span>
                     <span className="truncate text-sm text-muted-foreground">
-                      {[s.area, s.city].filter(Boolean).join(", ")} · {s.owner ? `${s.owner.name} (${s.owner.email})` : "No owner"}
+                      {[s.area, s.city].filter(Boolean).join(", ")} · {s.owner ? `${s.owner.name}${s.owner.publicId ? ` · Shopkeeper ID ${s.owner.publicId}` : ""} (${s.owner.email})` : "No owner"}
                     </span>
                     <span className="text-xs text-muted-foreground">Registered {formatDateTime(s.createdAt)}</span>
                   </span>

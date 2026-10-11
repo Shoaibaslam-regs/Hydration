@@ -50,3 +50,6 @@ export const shopClosureSchema = z.discriminatedUnion("action", [
 export const shopDeleteSchema = z.object({
   confirmName: z.string().trim().min(1, "Type your shop's name to confirm").max(120),
 });
+
+/** Tag or untag an order's customer as a Star customer. */
+export const starCustomerSchema = z.object({ star: z.boolean() });

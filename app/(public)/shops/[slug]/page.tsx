@@ -5,14 +5,18 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { OrderBuilder } from "@/components/customer/order-builder";
 import { ShopFavorite } from "@/components/customer/shop-favorite";
+import { StarCustomerNote } from "@/components/customer/star-customer-note";
 import { LocationMap } from "@/components/map/location-map";
+import { ClosedHoursNotice, HoursPill } from "@/components/shops/hours-status";
 import { Rating } from "@/components/shops/rating";
 import { ShopAvatar } from "@/components/shops/shop-avatar";
+import { StarShopBadge } from "@/components/shops/star-badge";
 import { VerifiedBadge } from "@/components/shops/verified-badge";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
+import { MapPinIcon } from "@/components/ui/icons";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { getShopBySlug, type ShopDetail } from "@/lib/services/shops";
 import { isOpenAt } from "@/lib/shops/hours";
@@ -74,6 +78,10 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{shop.name}</h1>
                   {shop.hasVerifiedBadge && <VerifiedBadge />}
+                  {shop.hasStarAward && <StarShopBadge />}
+                  <Suspense fallback={null}>
+                    <StarCustomerNote shopId={shop.id} />
+                  </Suspense>
                 </div>
                 <p className="mt-0.5 text-sm text-muted-foreground">{[shop.area, shop.city].filter(Boolean).join(", ")}</p>
               </div>
@@ -87,10 +95,8 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
               </span>
               {shop.closure ? (
                 <Badge tone="danger">Closed for now</Badge>
-              ) : openNow ? (
-                <Badge tone="success">● Open now · until {shop.hours.closesAt}</Badge>
               ) : (
-                <Badge tone="neutral">Closed · opens {shop.hours.opensAt}</Badge>
+                <HoursPill open={openNow} hours={shop.hours} />
               )}
               <Badge tone="info">Cash on delivery</Badge>
             </div>
@@ -111,6 +117,7 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
         <aside className="flex flex-col gap-4 self-start lg:sticky lg:top-20 lg:col-start-3 lg:row-start-1">
           <Card className="flex flex-col gap-4 border-primary/30 shadow-md">
             <h2 className="text-lg font-semibold">Order water</h2>
+            {!shop.closure && !notTakingOrders && !openNow && <ClosedHoursNotice hours={shop.hours} />}
             {shop.closure ? (
               <div role="status" className="rounded-xl border border-warning/50 bg-warning/10 p-4">
                 <p className="font-semibold">This shop is closed right now</p>
@@ -172,7 +179,10 @@ async function ShopContent({ params }: { params: PageProps<"/shops/[slug]">["par
               <span className="text-sm text-muted-foreground">Up to {shop.deliveryRadiusKm} km from the shop</span>
             </div>
             <LocationMap value={shop.location} label={`Map showing ${shop.name}`} className="h-64" />
-            <p className="text-sm text-muted-foreground">📍 {address}</p>
+            <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+              <MapPinIcon className="mt-0.5 text-primary" />
+              {address}
+            </p>
           </Card>
 
           <section aria-labelledby="reviews-heading" className="flex flex-col gap-3">

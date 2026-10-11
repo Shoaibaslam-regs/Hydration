@@ -8,12 +8,15 @@ import { ShopStatusBanner } from "@/components/shopkeeper/shop-status-banner";
 import { NewSupportThreadForm } from "@/components/support/new-thread-form";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { IdChip } from "@/components/ui/id-chip";
+import { StarCustomerBadge, StarShopBadge } from "@/components/shops/star-badge";
 import { requireRole } from "@/lib/auth/session";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { getMyShop, getMyShopStats } from "@/lib/services/my-shop";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { getMyBilling } from "@/lib/services/billing";
 import { listShopOrders } from "@/lib/services/shop-orders";
+import { getProfile } from "@/lib/services/users";
 
 export const metadata: Metadata = { title: "Shop dashboard" };
 
@@ -47,10 +50,11 @@ async function ShopOverview() {
     );
   }
 
-  const [stats, recent, billing] = await Promise.all([
+  const [stats, recent, billing, profile] = await Promise.all([
     getMyShopStats(shop.id),
     listShopOrders(shop, { page: 1, limit: 5 }),
     getMyBilling(shop),
+    getProfile(user.id),
   ]);
   const plan = billing.subscription;
 
@@ -68,7 +72,12 @@ async function ShopOverview() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">{shop.name}</h1>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h1 className="text-2xl font-bold">{shop.name}</h1>
+        <IdChip id={shop.publicId} label="Your Shop ID" />
+        <IdChip id={profile?.publicId ?? ""} label="Your Shopkeeper ID" />
+        {shop.hasStarAward && <StarShopBadge />}
+      </div>
       <ShopStatusBanner shop={shop} />
       {shop.status === "verified" && <ShopAvailability shop={shop} />}
 
@@ -99,8 +108,10 @@ async function ShopOverview() {
                 <Link href={`/shop/orders/${o.id}`} className="flex flex-wrap items-center justify-between gap-2 py-3 hover:text-primary">
                   <span className="flex flex-col">
                     <span className="font-medium">{o.orderNumber}</span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                       {o.contactName} · {formatDateTime(o.createdAt)}
+                      <IdChip id={o.customerPublicId} />
+                      {o.isStarCustomer && <StarCustomerBadge />}
                     </span>
                   </span>
                   <span className="flex items-center gap-3">
@@ -140,7 +151,7 @@ async function ShopOverview() {
             Your conversations →
           </Link>
         </div>
-        <NewSupportThreadForm compact />
+        <NewSupportThreadForm role="shopkeeper" compact />
       </Card>
     </div>
   );

@@ -10,6 +10,7 @@ import { SupportReplyForm } from "@/components/support/reply-form";
 import { Badge } from "@/components/ui/badge";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Card } from "@/components/ui/card";
+import { IdChip } from "@/components/ui/id-chip";
 import { requireRole } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/catalog";
 import { getSupportThreadForAdmin } from "@/lib/services/support";
@@ -43,18 +44,19 @@ async function ThreadContent({ params }: { params: PageProps<"/admin/support/[id
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">{thread.subject}</h1>
           <p className="text-sm text-muted-foreground">
-            {SUPPORT_CATEGORY_LABELS[thread.category]} · started {formatDateTime(thread.createdAt)} ·{" "}
-            {thread.shopId ? (
+            {SUPPORT_CATEGORY_LABELS[thread.category]} · started {formatDateTime(thread.createdAt)}
+          </p>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+            <Badge tone={thread.userRole === "customer" ? "neutral" : "info"}>{thread.userRole === "customer" ? "Customer" : "Shopkeeper"}</Badge>
+            <Link href={`/admin/users/${thread.userId}`} className="font-medium text-primary hover:underline">
+              {thread.userName}
+            </Link>
+            <IdChip id={thread.userPublicId} />
+            {thread.shopId && (
               <Link href={`/admin/shops/${thread.shopId}`} className="text-primary hover:underline">
                 {thread.shopName || "Shop"}
               </Link>
-            ) : (
-              "no shop yet"
-            )}{" "}
-            ·{" "}
-            <Link href={`/admin/users/${thread.shopkeeperId}`} className="text-primary hover:underline">
-              Shopkeeper account
-            </Link>
+            )}
           </p>
         </div>
         <Badge tone={thread.status === "open" ? "info" : "neutral"}>{thread.status === "open" ? "Open" : "Resolved"}</Badge>
@@ -66,7 +68,7 @@ async function ThreadContent({ params }: { params: PageProps<"/admin/support/[id
           <SupportReplyForm
             endpoint={`/api/admin/support/${thread.id}`}
             placeholder="Reply as the Aqua team…"
-            note="The shopkeeper sees this signed “Aqua team”. Ctrl + Enter to send."
+            note="They see this signed “Aqua team”. Ctrl + Enter to send."
           />
         </div>
       </Card>
@@ -84,7 +86,7 @@ async function ThreadContent({ params }: { params: PageProps<"/admin/support/[id
         variant="link"
         label="Delete conversation permanently"
         confirmTitle="Delete this conversation permanently?"
-        confirmMessage="It's deleted for the shopkeeper too. This can't be undone."
+        confirmMessage="It's deleted for them too. This can't be undone."
         confirmLabel="Delete permanently"
         redirectTo="/admin/support"
       />

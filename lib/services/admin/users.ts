@@ -5,6 +5,7 @@ import type { UserRole } from "@/lib/auth/roles";
 import { isSuspended, suspendedFilter } from "@/lib/auth/suspension";
 import type { SessionUser } from "@/lib/auth/session";
 import { connectDB } from "@/lib/db/connect";
+import { publicIdSearchRegex } from "@/lib/ids";
 import { Order, Shop, User } from "@/lib/db/models";
 import type { ShopStatus } from "@/lib/admin/shop-status";
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
@@ -13,6 +14,8 @@ import { listAdminActions, logAdminAction, type AuditEntry } from "./audit";
 
 export type AdminUserSummary = {
   id: string;
+  /** "CU-…" / "SK-…" / "AD-…" (empty for accounts created before IDs existed, until `npm run db:migrate`). */
+  publicId: string;
   name: string;
   email: string;
   phone: string;
@@ -27,12 +30,13 @@ export type AdminUserSummary = {
 
 export type AdminUserDetail = AdminUserSummary & {
   orderCount: number;
-  shop: { id: string; name: string; slug: string; status: ShopStatus } | null;
+  shop: { id: string; publicId: string; name: string; slug: string; status: ShopStatus } | null;
   history: AuditEntry[];
 };
 
 type UserLean = {
   _id: Types.ObjectId;
+  publicId?: string | null;
   name: string;
   email: string;
   phone?: string | null;
@@ -46,6 +50,7 @@ type UserLean = {
 function toSummary(u: UserLean): AdminUserSummary {
   return {
     id: u._id.toString(),
+    publicId: u.publicId ?? "",
     name: u.name,
     email: u.email,
     phone: u.phone ?? "",
@@ -61,7 +66,7 @@ function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const PROJECTION = { name: 1, email: 1, phone: 1, role: 1, status: 1, suspendedUntil: 1, createdAt: 1, lastLoginAt: 1 };
+const PROJECTION = { publicId: 1, name: 1, email: 1, phone: 1, role: 1, status: 1, suspendedUntil: 1, createdAt: 1, lastLoginAt: 1 };
 
 export async function listAdminUsers(query: AdminUserListQuery): Promise<Paginated<AdminUserSummary>> {
   await connectDB();
@@ -72,7 +77,8 @@ export async function listAdminUsers(query: AdminUserListQuery): Promise<Paginat
   if (query.status === "active") filter.$nor = [suspendedFilter(now)];
   if (query.q) {
     const rx = new RegExp(escapeRegex(query.q), "i");
-    filter.$or = [{ name: rx }, { email: rx }, { phone: rx }];
+    const idRx = publicIdSearchRegex(query.q);
+    filter.$or = [{ name: rx }, { email: rx }, { phone: rx }, ...(idRx ? [{ publicId: idRx }] : [])];
   }
   const [rows, total] = await Promise.all([
     User.find(filter, PROJECTION).sort({ createdAt: -1, _id: -1 }).skip(skipFor(query)).limit(query.limit).lean(),
@@ -89,13 +95,13 @@ export async function getAdminUser(userId: string): Promise<AdminUserDetail | nu
   const id = new Types.ObjectId(userId);
   const [orderCount, shop, history] = await Promise.all([
     u.role === "customer" ? Order.countDocuments({ customerId: id }) : Promise.resolve(0),
-    u.role === "shopkeeper" ? Shop.findOne({ ownerId: id }, { name: 1, slug: 1, status: 1 }).lean() : Promise.resolve(null),
+    u.role === "shopkeeper" ? Shop.findOne({ ownerId: id }, { publicId: 1, name: 1, slug: 1, status: 1 }).lean() : Promise.resolve(null),
     listAdminActions("user", userId),
   ]);
   return {
     ...toSummary(u as unknown as UserLean),
     orderCount,
-    shop: shop ? { id: shop._id.toString(), name: shop.name, slug: shop.slug, status: shop.status as ShopStatus } : null,
+    shop: shop ? { id: shop._id.toString(), publicId: shop.publicId ?? "", name: shop.name, slug: shop.slug, status: shop.status as ShopStatus } : null,
     history,
   };
 }

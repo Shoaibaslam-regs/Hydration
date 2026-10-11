@@ -5,7 +5,7 @@ import { ApiError } from "@/lib/api/errors";
 import { verifyPassword } from "@/lib/auth/password";
 import type { SessionUser } from "@/lib/auth/session";
 import { connectDB } from "@/lib/db/connect";
-import { Address, Order, PasswordReset, Review, Shop, SupportThread, User } from "@/lib/db/models";
+import { Address, Order, PasswordReset, Review, Shop, StarCustomer, SupportThread, User } from "@/lib/db/models";
 import { FINAL_ORDER_STATUSES, ORDER_STATUSES } from "@/lib/orders/status";
 import { refreshShopRating } from "../reviews";
 import { removeShopData } from "../shop-removal";
@@ -115,7 +115,8 @@ async function removeUserData(
   await Promise.all([
     Address.deleteMany({ userId: user._id }),
     PasswordReset.deleteMany({ userId: user._id }),
-    SupportThread.deleteMany({ shopkeeperId: user._id }),
+    SupportThread.deleteMany({ userId: user._id }),
+    StarCustomer.deleteMany({ customerId: user._id }),
   ]);
   await User.deleteOne({ _id: user._id });
 

@@ -21,8 +21,16 @@
   --premium: #a16207;
   --premium-soft: #fffbeb;
   --premium-foreground: #ffffff;
+  /* Admin-given "Star shop" award and shops' "Star customer" tags: violet, so they never look like paid (gold) placements. */
+  --award: #7c3aed;
+  --award-soft: #f5f3ff;
+  --award-foreground: #ffffff;
+  /* Light sheen across the top of glass panels. */
+  --glass-shine: rgb(255 255 255 / 0.35);
   /* Chart series color, validated against the light surface (dataviz validator). */
   --chart-1: #0369a1;
+  /* Dropdown chevron, drawn in --primary (a data URL can't read CSS variables). */
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 
 @media (prefers-color-scheme: dark) {
@@ -44,8 +52,13 @@
     --premium: #fbbf24;
     --premium-soft: #1c1405;
     --premium-foreground: #1c1405;
+    --award: #c4b5fd;
+    --award-soft: #1e1533;
+    --award-foreground: #1e1533;
+    --glass-shine: rgb(255 255 255 / 0.05);
     /* Validated against the dark card surface; one step darker than --primary. */
     --chart-1: #0284c7;
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   }
 }
 
@@ -67,6 +80,9 @@
   --color-premium: var(--premium);
   --color-premium-soft: var(--premium-soft);
   --color-premium-foreground: var(--premium-foreground);
+  --color-award: var(--award);
+  --color-award-soft: var(--award-soft);
+  --color-award-foreground: var(--award-foreground);
   --color-chart-1: var(--chart-1);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -92,4 +108,193 @@ body {
   .animate-banner-in {
     animation: banner-in 450ms ease-out both;
   }
+}
+
+/*
+ * Glass "water" surfaces: frosted, slightly blue-tinted, with a light edge.
+ * Unlayered, so they win over Tailwind utilities like bg-card.
+ */
+.glass-select {
+  appearance: none;
+  padding-right: 2.25rem;
+  background-color: color-mix(in oklab, var(--card) 72%, transparent);
+  background-image:
+    var(--select-chevron),
+    radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 60%);
+  background-repeat: no-repeat;
+  background-position:
+    right 0.7rem center,
+    0 0;
+  background-size:
+    1rem 1rem,
+    100% 100%;
+  border-color: color-mix(in oklab, var(--primary) 28%, var(--border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 55%, transparent),
+    0 1px 3px color-mix(in oklab, var(--primary) 12%, transparent);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  cursor: pointer;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+.glass-select:hover {
+  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+}
+.glass-select:focus-visible,
+.glass-select:open {
+  border-color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 55%, transparent),
+    0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent),
+    0 6px 18px -6px color-mix(in oklab, var(--primary) 45%, transparent);
+}
+
+/*
+ * Browsers with customizable selects (Chromium 135+) get a premium glass
+ * option list: it fades and drops in, options slide on hover with a water-blue
+ * edge, and the chosen one is a solid pill with a round check badge.
+ */
+@supports (appearance: base-select) {
+  .glass-select,
+  .glass-select::picker(select) {
+    appearance: base-select;
+  }
+  .glass-select {
+    display: flex;
+    align-items: center;
+  }
+  .glass-select selectedcontent {
+    font-weight: 500;
+  }
+  .glass-select::picker-icon {
+    display: none;
+  }
+  .glass-select::picker(select) {
+    min-width: anchor-size(width);
+    max-height: min(22rem, 60vh);
+    margin-block: 8px;
+    padding: 0.4rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 32%, var(--border));
+    border-radius: 1rem;
+    background:
+      linear-gradient(to bottom, var(--glass-shine), transparent 2.5rem),
+      radial-gradient(140% 100% at 0% 0%, color-mix(in oklab, var(--primary) 16%, transparent), transparent 55%),
+      radial-gradient(120% 90% at 100% 100%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 60%),
+      color-mix(in oklab, var(--card) 88%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 60%, transparent),
+      0 2px 6px -2px color-mix(in oklab, var(--primary) 25%, transparent),
+      0 24px 48px -16px color-mix(in oklab, var(--primary) 45%, transparent);
+    color: var(--foreground);
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--primary) 40%, transparent) transparent;
+  }
+  .glass-select option {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-block: 1px;
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.7rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition:
+      background-color 140ms,
+      box-shadow 140ms,
+      translate 140ms,
+      color 140ms;
+  }
+  .glass-select option:hover,
+  .glass-select option:focus-visible {
+    background: linear-gradient(90deg, color-mix(in oklab, var(--primary) 20%, transparent), color-mix(in oklab, var(--primary) 5%, transparent));
+    box-shadow: inset 3px 0 0 var(--primary);
+    translate: 2px 0;
+    outline: none;
+  }
+  .glass-select option:checked {
+    background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+    color: var(--primary-foreground);
+    font-weight: 600;
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 35%, transparent),
+      0 6px 14px -6px color-mix(in oklab, var(--primary) 70%, transparent);
+    translate: 0 0;
+  }
+  .glass-select option:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  /* The check sits at the end in a small round badge. */
+  .glass-select option::checkmark {
+    order: 1;
+    margin-inline-start: auto;
+    display: grid;
+    place-items: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--primary-foreground) 25%, transparent);
+    font-size: 0.7rem;
+    content: "✓";
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .glass-select::picker(select) {
+      transition:
+        opacity 160ms ease-out,
+        translate 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        scale 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        display 180ms allow-discrete,
+        overlay 180ms allow-discrete;
+      transform-origin: top center;
+    }
+    .glass-select:not(:open)::picker(select) {
+      opacity: 0;
+      translate: 0 -6px;
+      scale: 0.97;
+    }
+    @starting-style {
+      .glass-select:open::picker(select) {
+        opacity: 0;
+        translate: 0 -6px;
+        scale: 0.97;
+      }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glass-select option {
+      transition: none;
+    }
+    .glass-select option:hover,
+    .glass-select option:focus-visible {
+      translate: 0 0;
+    }
+  }
+}
+
+/* Frosted pop-down panels (place search results, the phone menu). Opaque enough to read over page content. */
+.glass-panel {
+  background:
+    radial-gradient(140% 100% at 0% 0%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 55%),
+    color-mix(in oklab, var(--background) 92%, transparent);
+  border-color: color-mix(in oklab, var(--primary) 25%, var(--border));
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 45%, transparent),
+    0 16px 36px -14px color-mix(in oklab, var(--primary) 40%, transparent);
+}
+
+/* Same look, fully opaque: for panels that cover page text (the phone menu). */
+.glass-panel-solid {
+  background:
+    radial-gradient(140% 100% at 0% 0%, color-mix(in oklab, var(--primary) 9%, transparent), transparent 55%),
+    var(--background);
+  border-color: color-mix(in oklab, var(--primary) 25%, var(--border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 45%, transparent),
+    0 16px 36px -14px color-mix(in oklab, var(--primary) 40%, transparent);
 }
