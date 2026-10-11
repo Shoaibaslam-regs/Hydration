@@ -43,6 +43,8 @@ const bannerSchema = new Schema(
     title: { type: String, required: true, trim: true, maxlength: 80 },
     subtitle: { type: String, default: "", trim: true, maxlength: 160 },
     ctaLabel: { type: String, default: "Learn more", trim: true, maxlength: 30 },
+    /** Who paid for the banner, shown as "Sponsored by …". Empty for Aqua's own announcements. */
+    sponsorName: { type: String, default: "", trim: true, maxlength: 60 },
     /** Same-site path ("/shops/x") or an https URL. */
     linkUrl: { type: String, required: true, trim: true, maxlength: 500 },
     imageId: { type: Schema.Types.ObjectId, ref: "BannerImage", default: null },

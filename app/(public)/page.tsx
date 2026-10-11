@@ -8,8 +8,8 @@ import { Container } from "@/components/ui/container";
 import heroImage from "@/public/images/home-hero.png";
 
 const steps = [
-  { title: "Find nearby shops", body: "See verified water shops around your location, with prices and ratings." },
-  { title: "Choose your water", body: "Pick bottles, cans, or refills and the quantity you need." },
+  { title: "Find nearby shops", body: "Type your area or use your location to see shops nearby, with prices and ratings." },
+  { title: "Choose your water", body: "Choose how many 19L cans you need and pay cash on delivery." },
   { title: "Track your order", body: "Follow your order from confirmation to delivery." },
 ];
 
@@ -34,7 +34,7 @@ export default function Home() {
             Clean drinking water, delivered from shops near you.
           </h1>
           <p className="max-w-xl text-lg text-white/85">
-            Aqua connects you with verified local water shops. Compare prices, book in a few taps, and track
+            Aqua connects you with trusted local water shops. Compare prices, book in a few taps, and track
             every delivery.
           </p>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">

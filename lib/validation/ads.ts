@@ -45,6 +45,8 @@ export const bannerInputSchema = z
     title: z.string().trim().min(3, "Enter a title").max(80),
     subtitle: z.string().trim().max(160).default(""),
     ctaLabel: z.string().trim().min(1).max(30).default("Learn more"),
+    /** Advertiser shown as "Sponsored by …"; empty for Aqua's own banners. */
+    sponsorName: z.string().trim().max(60).default(""),
     linkUrl: bannerLinkSchema,
     imageId: z.string().regex(/^[a-f0-9]{24}$/i).nullable().default(null),
     startDate: dateString,

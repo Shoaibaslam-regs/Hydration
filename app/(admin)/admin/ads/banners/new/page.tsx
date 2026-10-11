@@ -36,7 +36,7 @@ async function NewBanner() {
   return (
     <Card>
       <BannerEditor
-        initial={{ title: "", subtitle: "", ctaLabel: "Learn more", linkUrl: "/shops", imageId: null, startDate: today, endDate: inAWeek, isActive: true, sortOrder: 0 }}
+        initial={{ title: "", subtitle: "", ctaLabel: "Learn more", sponsorName: "", linkUrl: "/shops", imageId: null, startDate: today, endDate: inAWeek, isActive: true, sortOrder: 0 }}
       />
     </Card>
   );

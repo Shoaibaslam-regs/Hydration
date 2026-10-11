@@ -17,6 +17,10 @@
   --danger: #dc2626;
   --success: #16a34a;
   --warning: #d97706;
+  /* Sponsored ("premium") shops: gold text/borders, a soft gold surface, and text on solid gold. */
+  --premium: #a16207;
+  --premium-soft: #fffbeb;
+  --premium-foreground: #ffffff;
   /* Chart series color, validated against the light surface (dataviz validator). */
   --chart-1: #0369a1;
 }
@@ -37,6 +41,9 @@
     --danger: #f87171;
     --success: #4ade80;
     --warning: #fbbf24;
+    --premium: #fbbf24;
+    --premium-soft: #1c1405;
+    --premium-foreground: #1c1405;
     /* Validated against the dark card surface; one step darker than --primary. */
     --chart-1: #0284c7;
   }
@@ -57,6 +64,9 @@
   --color-danger: var(--danger);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-premium: var(--premium);
+  --color-premium-soft: var(--premium-soft);
+  --color-premium-foreground: var(--premium-foreground);
   --color-chart-1: var(--chart-1);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -65,4 +75,21 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Promoted banner slide change: a short fade/slide, only when motion is welcome. */
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .animate-banner-in {
+    animation: banner-in 450ms ease-out both;
+  }
 }

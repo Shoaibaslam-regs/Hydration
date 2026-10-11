@@ -35,9 +35,9 @@ export async function HomeAds() {
               <li key={d.id}>
                 <Link
                   href={`/shops/${d.shop.slug}`}
-                  className="flex h-full flex-col gap-2 rounded-xl border border-warning/40 bg-warning/5 p-4 transition-shadow hover:shadow-md"
+                  className="flex h-full flex-col gap-2 rounded-xl border border-premium/30 bg-gradient-to-br from-premium-soft to-card p-4 transition-shadow hover:border-premium/60 hover:shadow-md"
                 >
-                  <span className="w-fit rounded bg-warning px-1.5 py-0.5 text-xs font-semibold text-white">Deal</span>
+                  <span className="w-fit rounded bg-premium px-1.5 py-0.5 text-xs font-semibold text-premium-foreground">Deal</span>
                   <span className="font-semibold">{d.title}</span>
                   {d.description && <span className="line-clamp-2 text-sm text-muted-foreground">{d.description}</span>}
                   <span className="mt-auto flex flex-wrap items-center gap-1.5 text-sm">

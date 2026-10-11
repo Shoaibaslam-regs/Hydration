@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { AdChip } from "@/components/ads/ad-chip";
 import { AdImpression } from "@/components/ads/ad-impression";
 import { ShopCard } from "@/components/shops/shop-card";
 import { ShopFilters } from "@/components/shops/shop-filters";
@@ -21,7 +22,7 @@ export default function ShopsPage({ searchParams }: PageProps<"/shops">) {
     <Container className="flex flex-col gap-6 py-8 sm:py-10">
       <div>
         <h1 className="text-2xl font-bold sm:text-3xl">Find water shops</h1>
-        <p className="mt-1 text-muted-foreground">Verified shops, real prices, delivered to your door.</p>
+        <p className="mt-1 text-muted-foreground">Local shops, real prices, delivered to your door.</p>
       </div>
       <Suspense fallback={<div className="h-48 animate-pulse rounded-xl bg-muted" />}>
         <ShopFilters />
@@ -102,15 +103,25 @@ async function Results({ searchParams }: { searchParams: PageProps<"/shops">["se
         )}
       </div>
       {sponsored.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Sponsored shops">
-          {sponsored.map((shop) => (
-            <AdImpression key={shop.id} kind="sponsored" id={shop.id} className="flex">
-              <div className="flex w-full flex-col [&>*]:flex-1">
-                <ShopCard shop={shop} sponsored />
-              </div>
-            </AdImpression>
-          ))}
-        </div>
+        <section aria-labelledby="featured-heading" className="flex flex-col gap-3 rounded-2xl bg-premium-soft/60 p-3 ring-1 ring-premium/20 sm:p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 id="featured-heading" className="font-semibold">
+              <span aria-hidden className="text-premium">★ </span>Featured near you
+            </h2>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              Paid placements <AdChip />
+            </span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {sponsored.map((shop) => (
+              <AdImpression key={shop.id} kind="sponsored" id={shop.id} className="flex">
+                <div className="flex w-full flex-col [&>*]:flex-1">
+                  <ShopCard shop={shop} sponsored />
+                </div>
+              </AdImpression>
+            ))}
+          </div>
+        </section>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {result.items.map((shop) => (

@@ -13,6 +13,7 @@ export type BannerFormValues = {
   title: string;
   subtitle: string;
   ctaLabel: string;
+  sponsorName: string;
   linkUrl: string;
   imageId: string | null;
   startDate: string;
@@ -65,6 +66,7 @@ export function BannerEditor({ bannerId, initial }: { bannerId?: string; initial
       title: f.get("title"),
       subtitle: f.get("subtitle"),
       ctaLabel: f.get("ctaLabel") || "Learn more",
+      sponsorName: f.get("sponsorName") ?? "",
       linkUrl: f.get("linkUrl"),
       imageId,
       startDate: f.get("startDate"),
@@ -90,6 +92,13 @@ export function BannerEditor({ bannerId, initial }: { bannerId?: string; initial
       <FormError message={error} />
       <Field label="Title" error={fieldErrors.title?.[0]}>
         {(p) => <Input {...p} name="title" defaultValue={initial.title} maxLength={80} required />}
+      </Field>
+      <Field
+        label="Advertiser (optional)"
+        hint="Shown on the banner as “Sponsored by …”. Leave empty for Aqua's own announcements."
+        error={fieldErrors.sponsorName?.[0]}
+      >
+        {(p) => <Input {...p} name="sponsorName" defaultValue={initial.sponsorName} maxLength={60} placeholder="e.g. Nestlé Pure Life" />}
       </Field>
       <Field label="Subtitle (optional)" error={fieldErrors.subtitle?.[0]}>
         {(p) => <Input {...p} name="subtitle" defaultValue={initial.subtitle} maxLength={160} />}

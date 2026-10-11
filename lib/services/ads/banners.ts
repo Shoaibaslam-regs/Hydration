@@ -13,7 +13,15 @@ import { adTotals, type AdTotals } from "./stats";
 export const BANNERS_TAG = "ads-banners";
 export const MAX_BANNER_IMAGE_BYTES = 2 * 1024 * 1024;
 
-export type PublicBanner = { id: string; title: string; subtitle: string; ctaLabel: string; imageUrl: string | null };
+export type PublicBanner = {
+  id: string;
+  title: string;
+  subtitle: string;
+  ctaLabel: string;
+  /** Advertiser name ("Sponsored by …"); empty for Aqua's own banners. */
+  sponsorName: string;
+  imageUrl: string | null;
+};
 
 export type AdminBanner = PublicBanner & {
   linkUrl: string;
@@ -31,6 +39,7 @@ type BannerLean = {
   title: string;
   subtitle?: string | null;
   ctaLabel?: string | null;
+  sponsorName?: string | null;
   linkUrl: string;
   imageId?: Types.ObjectId | null;
   startsAt: Date;
@@ -42,7 +51,7 @@ type BannerLean = {
 const imageUrl = (id: Types.ObjectId | null | undefined) => (id ? `/api/banner-images/${id.toString()}` : null);
 
 function toPublic(b: BannerLean): PublicBanner {
-  return { id: b._id.toString(), title: b.title, subtitle: b.subtitle ?? "", ctaLabel: b.ctaLabel || "Learn more", imageUrl: imageUrl(b.imageId) };
+  return { id: b._id.toString(), title: b.title, subtitle: b.subtitle ?? "", ctaLabel: b.ctaLabel || "Learn more", sponsorName: b.sponsorName ?? "", imageUrl: imageUrl(b.imageId) };
 }
 
 /** Banners to show on the home page now. Cached; admin changes invalidate it. */
@@ -92,6 +101,7 @@ function toFields(input: BannerInput) {
     title: input.title,
     subtitle: input.subtitle,
     ctaLabel: input.ctaLabel,
+    sponsorName: input.sponsorName,
     linkUrl: input.linkUrl,
     imageId: input.imageId ? new Types.ObjectId(input.imageId) : null,
     startsAt: startOfDayInZone(input.startDate),
