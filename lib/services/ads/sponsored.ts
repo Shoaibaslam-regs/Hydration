@@ -77,7 +77,10 @@ export async function requestCampaign(shop: MyShop, input: CampaignRequest): Pro
 export async function listMyCampaigns(shop: MyShop): Promise<CampaignDTO[]> {
   await connectDB();
   const now = new Date();
-  const rows = await SponsoredCampaign.find({ shopId: new Types.ObjectId(shop.id) }).sort({ createdAt: -1 }).limit(20).lean();
+  const rows = await SponsoredCampaign.find({ shopId: new Types.ObjectId(shop.id), hiddenForShop: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean();
   return rows.map((c) => toDTO(c as unknown as CampaignLean, shop.name, now));
 }
 
@@ -148,4 +151,42 @@ export async function findSponsoredShops(input: ShopSearch): Promise<ShopSummary
 export async function isSponsoredNow(shopId: string): Promise<boolean> {
   await connectDB();
   return Boolean(await SponsoredCampaign.exists({ shopId: new Types.ObjectId(shopId), ...runningNow(new Date()) }));
+}
+
+/** Finished = nothing left to happen: rejected, cancelled, or approved and already over. */
+const finishedCampaign = (now: Date): Record<string, unknown> => ({
+  $or: [{ status: { $in: ["rejected", "cancelled"] } }, { status: "approved", endsAt: { $lte: now } }],
+});
+
+/**
+ * The shopkeeper's delete button: withdraws a request that's still waiting
+ * for review, or removes a finished one from their history (admins keep the
+ * record). Running or upcoming approved campaigns can't be deleted.
+ */
+export async function removeMyCampaign(shop: MyShop, campaignId: string): Promise<"withdrawn" | "removed"> {
+  await connectDB();
+  const shopId = new Types.ObjectId(shop.id);
+  const c = await SponsoredCampaign.findOne({ _id: campaignId, shopId, hiddenForShop: { $ne: true } }, { status: 1 }).lean();
+  if (!c) throw ApiError.notFound("Campaign not found");
+  if (c.status === "pending") {
+    await withdrawMyCampaign(shop, campaignId);
+    return "withdrawn";
+  }
+  const filter: Record<string, unknown> = { _id: campaignId, shopId, ...finishedCampaign(new Date()) };
+  const res = await SponsoredCampaign.updateOne(filter, { $set: { hiddenForShop: true } });
+  if (res.matchedCount === 0) throw ApiError.conflict("This campaign is approved and hasn't finished yet, so it can't be deleted.");
+  return "removed";
+}
+
+/** Permanently delete a finished campaign record. Audited. */
+export async function deleteCampaignAsAdmin(admin: SessionUser, campaignId: string): Promise<void> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(campaignId)) throw ApiError.notFound("Campaign not found");
+  const filter: Record<string, unknown> = { _id: campaignId, ...finishedCampaign(new Date()) };
+  const c = (await SponsoredCampaign.findOneAndDelete(filter).lean()) as { shopId: Types.ObjectId; startsAt: Date; endsAt: Date; status: string } | null;
+  if (!c) {
+    if (!(await SponsoredCampaign.exists({ _id: campaignId }))) throw ApiError.notFound("Campaign not found");
+    throw ApiError.conflict("Only finished campaigns can be deleted. Reject or cancel it first.");
+  }
+  await logAdminAction(admin, "ads.campaign.deleted", "shop", c.shopId, `${dayKey(c.startsAt)} → ${dayKey(new Date(c.endsAt.getTime() - 1))} (${c.status})`);
 }

@@ -5,6 +5,7 @@ import { AdminActions } from "@/components/admin/admin-actions";
 import { AuditLog } from "@/components/admin/audit-log";
 import { PaymentStatusBadge } from "@/components/billing/payment-status-badge";
 import { SettingsForm } from "@/components/billing/settings-form";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -96,7 +97,18 @@ async function SubscriptionsContent({ searchParams }: { searchParams: PageProps<
                       )}
                       {p.reviewReason && <span className="text-xs text-danger">Reason: {p.reviewReason}</span>}
                     </div>
-                    <PaymentStatusBadge status={p.status} />
+                    <span className="flex items-center gap-2">
+                      <PaymentStatusBadge status={p.status} />
+                      {p.status === "rejected" && (
+                        <DeleteButton
+                          endpoint={`/api/admin/subscription-payments/${p.id}`}
+                          variant="icon"
+                          label="Delete rejected payment"
+                          confirmTitle="Delete this rejected payment?"
+                          confirmMessage={`${p.shopName}, ref. ${p.reference}. Approved payments can't be deleted; they're your revenue record.`}
+                        />
+                      )}
+                    </span>
                   </div>
                   {p.status === "pending" && (
                     <AdminActions
@@ -120,7 +132,7 @@ async function SubscriptionsContent({ searchParams }: { searchParams: PageProps<
         <Pagination page={payments.page} totalPages={payments.totalPages} hrefFor={(pg) => `/admin/subscriptions?status=${status}&page=${pg}`} />
       </section>
 
-      {history.length > 0 && <AuditLog entries={history} />}
+      {history.length > 0 && <AuditLog entries={history} target={{ type: "platform", id: null }} />}
       <CardDescription>Plans and prices are defined in lib/plans.ts and shown on the public pricing page.</CardDescription>
     </>
   );

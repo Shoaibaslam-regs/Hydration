@@ -6,10 +6,12 @@ import { NotificationDot } from "@/components/notifications/count-badge";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { requireRole } from "@/lib/auth/session";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
+import { FINAL_ORDER_STATUSES } from "@/lib/orders/status";
 import { listCustomerOrders } from "@/lib/services/customer-orders";
 import { customerOrderListSchema } from "@/lib/validation/customer";
 
@@ -44,11 +46,21 @@ async function OrdersContent({ searchParams }: { searchParams: PageProps<"/accou
 
   return (
     <>
+      <div className="flex justify-end">
+        <DeleteButton
+          endpoint="/api/customer/orders"
+          variant="link"
+          label="Clear finished orders"
+          confirmTitle="Clear finished orders from your history?"
+          confirmMessage="Delivered, cancelled and rejected orders are removed from your list. Orders still on their way stay. The shop keeps its own records."
+          confirmLabel="Clear history"
+        />
+      </div>
       <Card className="p-0">
         <ul className="divide-y divide-border">
           {result.items.map((o) => (
-            <li key={o.id}>
-              <Link href={`/account/orders/${o.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-muted/50">
+            <li key={o.id} className="flex items-center gap-1 pr-3">
+              <Link href={`/account/orders/${o.id}`} className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-muted/50">
                 <span className="flex min-w-0 flex-col">
                   <span className="flex items-center gap-2 font-medium">
                     {o.shop.name}
@@ -63,6 +75,18 @@ async function OrdersContent({ searchParams }: { searchParams: PageProps<"/accou
                   <OrderStatusBadge status={o.status} />
                 </span>
               </Link>
+              {FINAL_ORDER_STATUSES.includes(o.status) ? (
+                <DeleteButton
+                  endpoint={`/api/customer/orders/${o.id}`}
+                  variant="icon"
+                  label={`Remove order ${o.orderNumber} from your history`}
+                  confirmTitle="Remove this order from your history?"
+                  confirmMessage="The shop keeps its own record of it."
+                  confirmLabel="Remove"
+                />
+              ) : (
+                <span className="size-7 shrink-0" aria-hidden />
+              )}
             </li>
           ))}
         </ul>

@@ -5,6 +5,7 @@ import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { Pagination } from "@/components/ui/pagination";
 import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
@@ -28,7 +29,17 @@ const TABS: { status?: OrderStatus; label: string }[] = [
 export default function OrdersPage({ searchParams }: PageProps<"/shop/orders">) {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Orders</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold">Orders</h1>
+        <DeleteButton
+          endpoint="/api/shopkeeper/orders"
+          variant="link"
+          label="Clear finished orders"
+          confirmTitle="Clear finished orders from your list?"
+          confirmMessage="Delivered, rejected and cancelled orders are removed from this list. They still count in Sales & reports, and customers keep their copies."
+          confirmLabel="Clear list"
+        />
+      </div>
       <Suspense fallback={<PageSkeleton />}>
         <OrdersContent searchParams={searchParams} />
       </Suspense>

@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Order } from "@/lib/db/models";
 import {
   canShopkeeperMove,
+  FINAL_ORDER_STATUSES,
   REASON_REQUIRED,
   SHOPKEEPER_TRANSITIONS,
   type OrderStatus,
@@ -100,7 +101,7 @@ function toDetail(o: OrderLean): ShopOrderDetail {
 
 export async function listShopOrders(shop: MyShop, query: OrderListQuery): Promise<Paginated<ShopOrderSummary>> {
   await connectDB();
-  const filter: Record<string, unknown> = { shopId: new Types.ObjectId(shop.id) };
+  const filter: Record<string, unknown> = { shopId: new Types.ObjectId(shop.id), hiddenForShop: { $ne: true } };
   if (query.status) filter.status = query.status;
   const [items, total] = await Promise.all([
     Order.find(filter, { statusHistory: 0 }).sort({ createdAt: -1, _id: -1 }).skip(skipFor(query)).limit(query.limit).lean(),
@@ -150,4 +151,28 @@ export async function updateShopOrderStatus(
   if (!updated) throw ApiError.conflict("This order was just updated. Refresh and try again.");
 
   return toDetail(updated as unknown as OrderLean);
+}
+
+/**
+ * Remove a finished order from the shop's order list. It still counts in the
+ * shop's sales reports, and the customer still sees it.
+ */
+export async function hideShopOrder(shop: MyShop, orderId: string): Promise<void> {
+  await connectDB();
+  const shopId = new Types.ObjectId(shop.id);
+  const res = await Order.updateOne({ _id: orderId, shopId, status: { $in: FINAL_ORDER_STATUSES } }, { $set: { hiddenForShop: true } });
+  if (res.matchedCount === 0) {
+    if (!(await Order.exists({ _id: orderId, shopId }))) throw ApiError.notFound("Order not found");
+    throw ApiError.conflict("Only finished orders can be removed. Finish, reject or cancel it first.");
+  }
+}
+
+/** Remove every finished order from the shop's list. Returns how many. */
+export async function clearShopOrderHistory(shop: MyShop): Promise<number> {
+  await connectDB();
+  const res = await Order.updateMany(
+    { shopId: new Types.ObjectId(shop.id), status: { $in: FINAL_ORDER_STATUSES }, hiddenForShop: { $ne: true } },
+    { $set: { hiddenForShop: true } },
+  );
+  return res.modifiedCount;
 }

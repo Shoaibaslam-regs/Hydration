@@ -2,9 +2,10 @@ import "server-only";
 import { revalidateTag } from "next/cache";
 import { Types } from "mongoose";
 import { ApiError } from "@/lib/api/errors";
+import { verifyPassword } from "@/lib/auth/password";
 import type { SessionUser } from "@/lib/auth/session";
 import { connectDB } from "@/lib/db/connect";
-import { Address, Order, PasswordReset, Review, Shop, User } from "@/lib/db/models";
+import { Address, Order, PasswordReset, Review, Shop, SupportThread, User } from "@/lib/db/models";
 import { FINAL_ORDER_STATUSES, ORDER_STATUSES } from "@/lib/orders/status";
 import { refreshShopRating } from "../reviews";
 import { removeShopData } from "../shop-removal";
@@ -36,13 +37,42 @@ export async function deleteUserAccount(
     throw ApiError.badRequest("Type the user's email exactly to confirm", { fieldErrors: { confirmEmail: ["Doesn't match this user's email"] } });
   }
 
+  const result = await removeUserData(user, "admin", reason);
+  // Record who was deleted: the account itself no longer exists.
+  await logAdminAction(admin, "user.deleted", "user", user._id, `${user.name} <${user.email}> (${user.role}): ${reason}`.slice(0, 500));
+  return result;
+}
+
+/**
+ * A customer or shopkeeper deletes their own account after re-entering their
+ * password. Same clean-up as an admin deletion. Admin accounts can't delete
+ * themselves this way (use another admin).
+ */
+export async function deleteMyAccount(sessionUser: SessionUser, password: string): Promise<UserRemovalResult> {
+  await connectDB();
+  if (sessionUser.role === "admin") throw ApiError.forbidden("Admin accounts are removed by another admin.");
+  const user = await User.findById(sessionUser.id, { email: 1, name: 1, role: 1, passwordHash: 1 }).select("+passwordHash").lean();
+  if (!user) throw ApiError.notFound("Account not found");
+  if (!(await verifyPassword(password, user.passwordHash))) {
+    throw ApiError.badRequest("That password isn't right", { fieldErrors: { password: ["That password isn't right"] } });
+  }
+  return removeUserData(user, "self", "Account deleted by its owner");
+}
+
+/** The shared clean-up behind both deletions. */
+async function removeUserData(
+  user: { _id: Types.ObjectId; role: string },
+  by: "admin" | "self",
+  reason: string,
+): Promise<UserRemovalResult> {
   const result: UserRemovalResult = { role: user.role, cancelledOrders: 0, anonymizedOrders: 0, deletedReviews: 0, removedShop: false };
   const touchedShops = new Set<string>();
+  const actor = by === "admin" ? "admin" : user.role === "shopkeeper" ? "shopkeeper" : "customer";
 
   // Shopkeeper: remove their shop first (cancels its unfinished orders, deletes its reviews).
   const shop = await Shop.findOne({ ownerId: user._id }, { slug: 1 }).lean();
   if (shop) {
-    const removed = await removeShopData(shop, "admin", `Shop removed: ${reason}`);
+    const removed = await removeShopData(shop, by === "admin" ? "admin" : "shopkeeper", by === "admin" ? `Shop removed: ${reason}` : "The shop has closed permanently");
     result.cancelledOrders += removed.cancelledOrders;
     result.removedShop = true;
   }
@@ -53,7 +83,7 @@ export async function deleteUserAccount(
   for (const o of open) {
     const claimed = await Order.updateOne(
       { _id: o._id, status: o.status },
-      { $set: { status: "cancelled" }, $push: { statusHistory: { status: "cancelled", at: new Date(), by: "admin", note: "Customer account deleted" } } },
+      { $set: { status: "cancelled" }, $push: { statusHistory: { status: "cancelled", at: new Date(), by: actor, note: "Customer account deleted" } } },
     );
     if (claimed.modifiedCount === 0) continue;
     touchedShops.add(o.shopId.toString());
@@ -82,11 +112,12 @@ export async function deleteUserAccount(
     touchedShops.add(String(shopId));
   }
 
-  await Promise.all([Address.deleteMany({ userId: user._id }), PasswordReset.deleteMany({ userId: user._id })]);
+  await Promise.all([
+    Address.deleteMany({ userId: user._id }),
+    PasswordReset.deleteMany({ userId: user._id }),
+    SupportThread.deleteMany({ shopkeeperId: user._id }),
+  ]);
   await User.deleteOne({ _id: user._id });
-
-  // Record who was deleted: the account itself no longer exists.
-  await logAdminAction(admin, "user.deleted", "user", user._id, `${user.name} <${user.email}> (${user.role}): ${reason}`.slice(0, 500));
 
   const slugs = await Shop.find({ _id: { $in: [...touchedShops].map((id) => new Types.ObjectId(id)) } }, { slug: 1 }).lean();
   for (const s of slugs) revalidateTag(shopTag(s.slug), { expire: 0 });

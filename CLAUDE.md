@@ -75,7 +75,7 @@ Tests: `*.test.ts` are unit tests; `*.int.test.ts` are integration tests against
 
 **Admin** (`lib/services/admin/*`). Every change calls `logAdminAction()`, which is shown as "Admin history".
 - **Suspension** can be timed (`days`: 1/3/7/14/30/90) or open-ended (`days: null`). Always check with `isSuspended(user, now)` / `suspendedFilter(now)` from `lib/auth/suspension.ts`, never `status === "suspended"` alone: an expired timed suspension counts as active with no background job, and the record is tidied on the user's next login.
-- **Deleting an account** (`deleteUserAccount`, `lib/services/admin/user-removal.ts`) requires typing the user's email. It removes a shopkeeper's shop via `removeShopData`, cancels the customer's unfinished orders, and keeps past orders with the name, phone and street address replaced by placeholders. It deletes reviews (shop ratings are recalculated), addresses, reset links and the user. The audit entry stores the name and email because the account is gone. Plan payment records are kept.
+- **Deleting an account** (`deleteUserAccount`, `lib/services/admin/user-removal.ts`) requires typing the user's email. It removes a shopkeeper's shop via `removeShopData`, cancels the customer's unfinished orders, and keeps past orders with the name, phone and street address replaced by placeholders. It deletes reviews (shop ratings are recalculated), addresses, reset links, support conversations and the user. The audit entry stores the name and email because the account is gone. Plan payment records are kept.
 - Rejecting or suspending a shop requires a reason, which the shopkeeper sees. Admins can't change their own account from the panel. Password reset has no email provider yet: an admin creates a one-time link (`lib/services/password-reset.ts`). Only a SHA-256 hash of the token is stored, the link expires after an hour, it is claimed atomically so it works once, and using it increments `sessionVersion`.
 
 **Billing (shop plans, manual).** Every shop gets a `TRIAL_DAYS` (3) free trial when an admin first approves it (`startTrial()` in `lib/services/billing.ts`, called by `setShopStatus`; `Shop.trialStartedAt` makes it once-only). The trial is `Shop.subscription = { planId: "trial", endsAt }`. After it ends the shop is hidden and can't take orders until a monthly payment is approved. There's one paid plan (`PLANS`, "monthly", PKR 1,500). `planName()` also labels the trial and retired plan ids found on old payments.
@@ -85,7 +85,29 @@ Tests: `*.test.ts` are unit tests; `*.int.test.ts` are integration tests against
 - `PlatformSettings` (read with `getPlatformSettings()`, cached under the `platform-settings` tag) holds only the payment and sponsorship texts. Admin settings changes are audited with `targetType: "platform"`.
 - `npm run db:migrate` (`scripts/migrate-cans.ts`) moved existing data to this model: trials for approved shops, `pricePerCan` from each shop's old 19L can product, removal of the old catalog fields, and rebuilding every shop's `searchText`. It's safe to re-run.
 
-**Notifications** (`lib/services/notifications.ts` → `GET /api/notifications`). Counts are keyed by the dashboard link they belong to: admin (pending shops, plan payments, sponsorship requests), shopkeeper (pending orders), customer (orders with `customerUnread`). `useNotificationCounts()` polls every 30 s, on navigation and on focus. `DashboardNavLinks` shows a `CountBadge` per link, and the public header shows a dot on the dashboard link. To add a notification, return a count under the right nav href.
+**Deleting history.** Rule of thumb: people can tidy *their own* lists, admins can delete records permanently, and money records that count as revenue are never deletable. Deletion buttons use `DeleteButton` (`components/ui/delete-button.tsx`, themed confirm). Deletions that need a reason use `AdminActions` with `needsReason`.
+- **Orders:** customers and shops hide *finished* orders (`hiddenForCustomer` / `hiddenForShop`, filtered out of their own lists only). Sales reports still count them, and the other side keeps its copy. Admins can delete finished orders permanently (`deleteOrderAsAdmin`, which also deletes the review). Unfinished orders must be cancelled first.
+- **Sponsored campaigns:** the shop's delete withdraws a pending request, or hides a finished one (`hiddenForShop`); running or upcoming approved campaigns can't be deleted. Admins delete finished campaigns permanently.
+- **Deals:** the shop's delete ends a running deal, then deletes it once ended. For admins, a running deal needs a reason (taken down); an ended one is deleted.
+- **Plan payments:** pending ones can be cancelled and rejected ones deleted (by the shop or an admin). Approved payments are revenue and always stay.
+- **Support:** the shopkeeper's delete hides the conversation (`hiddenForShopkeeper`), and a new team reply brings it back. Admin delete is permanent.
+- **Reviews:** customers delete their own; admins delete any with a reason. Ratings recalculate either way.
+- **Admin history:** delete one entry (`/api/admin/history/[id]`) or clear a page's history (`clearAdminActions`), which leaves one "history.cleared" entry with the count.
+- **Accounts:** customers and shopkeepers can delete their own account (`DELETE /api/account` with their password → `deleteMyAccount`). It shares `removeUserData` with the admin deletion. Admin accounts can't delete themselves.
+
+**Notifications** (`lib/services/notifications.ts` → `GET /api/notifications`). Counts are keyed by the dashboard link they belong to: admin (pending shops, plan payments, sponsorship requests, unread support), shopkeeper (pending orders, unread support replies), customer (orders with `customerUnread`). `useNotificationCounts()` polls every 30 s, on navigation and on focus. `DashboardNavLinks` shows a `CountBadge` per link, and the public header shows a dot on the dashboard link. To add a notification, return a count under the right nav href.
+
+**Support (shopkeeper ↔ Aqua team)** (`lib/services/support.ts`, model `SupportThread` in `lib/db/models/support.ts`).
+- **Shopkeeper side:** start conversations and reply at `/shop/support`. They don't need a registered shop. The shop dashboard shows a "Need help?" box under the menu on every page (`navFooter` on `DashboardShell`, `components/support/help-box.tsx`), and the overview page has a quick message form.
+- **Admin side:** answer at `/admin/support`. Admin replies are signed "Aqua team", never the admin's name.
+- **How a conversation works:**
+  - Messages are embedded and capped at `MAX_SUPPORT_MESSAGES`; the cap is checked atomically in the update filter.
+  - `unreadForAdmin` / `unreadForShopkeeper` drive the notification counts. Opening a conversation clears your side's flag.
+  - A shopkeeper reply reopens a resolved conversation.
+  - Ownership comes from `{ _id, shopkeeperId }`.
+  - Shopkeeper messages are rate-limited (30 per hour).
+- **Deleting an account** deletes that shopkeeper's conversations.
+- Conversation pages refresh themselves every 20 s while visible (`AutoRefresh`).
 
 **Advertising** (`lib/services/ads/*`, constants in `lib/ads/constants.ts`, models in `lib/db/models/ads.ts`). Shopkeepers use `/shop/promote`; admins use `/admin/ads`. Day boundaries use `TIME_ZONE` (`lib/ads/dates.ts`).
 - **Sponsored placement:** up to `SPONSORED_SLOTS` shops, chosen with `$sample`, above page 1 of a *located* search (`findSponsoredShops` → `buildSponsoredPipeline`). They must pass the same filters as the organic results and be within their own delivery radius of the customer. A shop is eligible only with a running approved `SponsoredCampaign` (and it must still be listable). Campaigns are paid manually: the shop requests 1/2/4 weeks, the admin approves, rejects or cancels (each change uses the status as a precondition and is audited). Prices and payment text come from `PlatformSettings.sponsorshipInfo`.

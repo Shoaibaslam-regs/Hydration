@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
@@ -42,6 +43,18 @@ async function OrderDetail({ params }: { params: PageProps<"/shop/orders/[id]">[
           <OrderStatusBadge status={order.status} />
         </div>
         <p className="text-sm text-muted-foreground">Placed {formatDateTime(order.createdAt)}</p>
+        {order.nextStatuses.length === 0 && (
+          <DeleteButton
+            endpoint={`/api/shopkeeper/orders/${order.id}`}
+            variant="link"
+            label="Remove from order list"
+            confirmTitle="Remove this order from your list?"
+            confirmMessage="It disappears from Orders but still counts in your sales reports. The customer keeps their copy."
+            confirmLabel="Remove"
+            redirectTo="/shop/orders"
+            className="mt-2"
+          />
+        )}
       </div>
 
       {order.nextStatuses.length > 0 && (

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminActions } from "@/components/admin/admin-actions";
 import { AuditLog } from "@/components/admin/audit-log";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
@@ -44,7 +45,7 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/orders/[id]">
       {order.canCancel && (
         <Card className="flex flex-col gap-3">
           <CardTitle>Intervene</CardTitle>
-          <CardDescription>Cancel this order on behalf of the platform (e.g. a dispute). Stock is returned to the shop.</CardDescription>
+          <CardDescription>Cancel this order on behalf of the platform (e.g. a dispute).</CardDescription>
           <AdminActions
             endpoint={`/api/admin/orders/${order.id}`}
             actions={[{ label: "Cancel order", body: {}, needsReason: true, danger: true }]}
@@ -119,7 +120,25 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/orders/[id]">
           ))}
         </ol>
       </Card>
-      <AuditLog entries={order.adminHistory} />
+      {!order.canCancel && (
+        <Card className="flex flex-col gap-3 border-danger/40">
+          <CardTitle>Delete order</CardTitle>
+          <CardDescription>
+            Permanently deletes this order and its review for everyone, and removes it from sales reports. Use it for test orders
+            and mistakes. Customers and shops can already hide finished orders from their own lists.
+          </CardDescription>
+          <DeleteButton
+            endpoint={`/api/admin/orders/${order.id}`}
+            label="Delete order permanently"
+            confirmTitle={`Delete order ${order.orderNumber} permanently?`}
+            confirmMessage="This can't be undone. It disappears from the customer's and the shop's history and from reports."
+            confirmLabel="Delete permanently"
+            redirectTo="/admin/orders"
+          />
+        </Card>
+      )}
+
+      <AuditLog entries={order.adminHistory} target={{ type: "order", id: order.id }} />
     </div>
   );
 }

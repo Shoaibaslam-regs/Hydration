@@ -15,10 +15,13 @@ export type { DashboardNavItem };
 export function DashboardShell({
   title,
   nav,
+  navFooter,
   children,
 }: {
   title: string;
   nav: DashboardNavItem[];
+  /** Shown under the menu on medium screens and up (e.g. the shopkeeper's "Need help?" box). */
+  navFooter?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -41,11 +44,14 @@ export function DashboardShell({
       </header>
 
       <Container className="flex flex-1 flex-col gap-6 py-6 md:flex-row md:py-8">
-        <nav aria-label={`${title} navigation`} className="md:w-52 md:shrink-0">
-          <Suspense fallback={<DashboardNavLinks items={nav} activePath={null} />}>
-            <ActiveDashboardNav items={nav} />
-          </Suspense>
-        </nav>
+        <div className="flex flex-col gap-6 md:w-52 md:shrink-0">
+          <nav aria-label={`${title} navigation`}>
+            <Suspense fallback={<DashboardNavLinks items={nav} activePath={null} />}>
+              <ActiveDashboardNav items={nav} />
+            </Suspense>
+          </nav>
+          {navFooter && <div className="hidden md:block">{navFooter}</div>}
+        </div>
         <main id="main" className="min-w-0 flex-1">{children}</main>
       </Container>
     </div>

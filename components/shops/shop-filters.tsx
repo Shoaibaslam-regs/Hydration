@@ -84,7 +84,7 @@ export function ShopFilters() {
               id="q"
               name="q"
               type="search"
-              placeholder="Your area, street or a shop name, e.g. Gulshan-e-Bahar Orangi Town"
+              placeholder="Your area, street or a shop name, e.g. Gulshan-e-Bahar"
               defaultValue={query}
               maxLength={100}
               enterKeyHint="search"

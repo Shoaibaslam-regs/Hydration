@@ -5,6 +5,7 @@ import { AdminActions, type AdminAction } from "@/components/admin/admin-actions
 import { SponsorshipInfoForm } from "@/components/ads/sponsorship-info-form";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -128,7 +129,18 @@ async function SponsoredTab({ query }: { query: Query }) {
                       {c.note && <span className="text-sm text-muted-foreground">Note: {c.note}</span>}
                       {c.reviewReason && <span className="text-sm text-muted-foreground">Reason: {c.reviewReason}</span>}
                     </span>
-                    {c.running && <Badge tone="success">Running</Badge>}
+                    <span className="flex items-center gap-2">
+                      {c.running && <Badge tone="success">Running</Badge>}
+                      {(c.status === "rejected" || c.status === "cancelled" || (c.status === "approved" && new Date(c.endsAt) <= new Date())) && (
+                        <DeleteButton
+                          endpoint={`/api/admin/campaigns/${c.id}`}
+                          variant="icon"
+                          label="Delete campaign record"
+                          confirmTitle="Delete this campaign record permanently?"
+                          confirmMessage={`${c.shopName}, ${formatDayRange(c.startsAt, c.endsAt)}. It's removed for the shop too.`}
+                        />
+                      )}
+                    </span>
                   </div>
                   <AdminActions endpoint={`/api/admin/campaigns/${c.id}`} actions={actions} reasonHint="The shopkeeper sees this." />
                 </li>
@@ -176,9 +188,20 @@ async function DealsTab({ query }: { query: Query }) {
                     </span>
                     {d.removedBy === "admin" && <span className="text-xs text-muted-foreground">Removed: {d.removedReason}</span>}
                   </span>
-                  <Badge tone={d.state === "running" ? "success" : d.removedBy === "admin" ? "danger" : "neutral"}>
-                    {d.state === "running" ? "Running" : d.removedBy === "admin" ? "Removed" : "Ended"}
-                  </Badge>
+                  <span className="flex items-center gap-2">
+                    <Badge tone={d.state === "running" ? "success" : d.removedBy === "admin" ? "danger" : "neutral"}>
+                      {d.state === "running" ? "Running" : d.removedBy === "admin" ? "Removed" : "Ended"}
+                    </Badge>
+                    {d.state !== "running" && (
+                      <DeleteButton
+                        endpoint={`/api/admin/deals/${d.id}`}
+                        variant="icon"
+                        label="Delete deal"
+                        confirmTitle={`Delete “${d.title}” permanently?`}
+                        confirmMessage="It's removed for the shop too."
+                      />
+                    )}
+                  </span>
                 </div>
                 {d.state === "running" && (
                   <AdminActions

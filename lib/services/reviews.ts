@@ -7,6 +7,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Order, Review, Shop } from "@/lib/db/models";
 import { REVIEWABLE_STATUS } from "@/lib/orders/status";
 import type { ReviewInput } from "@/lib/validation/customer";
+import { logAdminAction } from "./admin/audit";
 import { shopTag } from "./shops";
 
 const DUPLICATE_KEY = 11000;
@@ -46,5 +47,40 @@ export async function createReview(user: SessionUser, orderId: string, input: Re
 
   await refreshShopRating(order.shopId);
   const shop = await Shop.findById(order.shopId, { slug: 1 }).lean();
+  if (shop) revalidateTag(shopTag(shop.slug), { expire: 0 });
+}
+
+/** The customer deletes their own review. The shop's rating is recalculated. */
+export async function deleteMyReview(user: SessionUser, orderId: string): Promise<void> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(orderId)) throw ApiError.notFound("Review not found");
+  const r = await Review.findOneAndDelete({ orderId, customerId: new Types.ObjectId(user.id) }).lean();
+  if (!r) throw ApiError.notFound("Review not found");
+  await afterReviewRemoved(r.shopId);
+}
+
+export type AdminReview = { id: string; authorName: string; rating: number; comment: string; createdAt: string };
+
+/** A shop's latest reviews, for moderation on the admin shop page. */
+export async function listShopReviewsForAdmin(shopId: string, limit = 30): Promise<AdminReview[]> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(shopId)) return [];
+  const rows = await Review.find({ shopId: new Types.ObjectId(shopId) }).sort({ createdAt: -1 }).limit(limit).lean();
+  return rows.map((r) => ({ id: r._id.toString(), authorName: r.authorName, rating: r.rating, comment: r.comment ?? "", createdAt: r.createdAt.toISOString() }));
+}
+
+/** Admin deletes any review (abusive, fake…). Needs a reason; audited on the shop. */
+export async function deleteReviewAsAdmin(admin: SessionUser, reviewId: string, reason: string): Promise<void> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(reviewId)) throw ApiError.notFound("Review not found");
+  const r = await Review.findOneAndDelete({ _id: reviewId }).lean();
+  if (!r) throw ApiError.notFound("Review not found");
+  await logAdminAction(admin, "review.deleted", "shop", r.shopId, `${r.rating}★ by ${r.authorName}: ${reason}`.slice(0, 500));
+  await afterReviewRemoved(r.shopId);
+}
+
+async function afterReviewRemoved(shopId: Types.ObjectId) {
+  await refreshShopRating(shopId);
+  const shop = await Shop.findById(shopId, { slug: 1 }).lean();
   if (shop) revalidateTag(shopTag(shop.slug), { expire: 0 });
 }

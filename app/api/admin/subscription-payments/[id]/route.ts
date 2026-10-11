@@ -1,6 +1,6 @@
 import { apiHandler, json, parseBody } from "@/lib/api/handler";
 import { requireApiUser } from "@/lib/auth/session";
-import { approveSubscriptionPayment, rejectSubscriptionPayment } from "@/lib/services/billing";
+import { approveSubscriptionPayment, deletePaymentAsAdmin, rejectSubscriptionPayment } from "@/lib/services/billing";
 import { adminPaymentDecisionSchema } from "@/lib/validation/billing";
 import { objectIdSchema } from "@/lib/validation/shopkeeper";
 
@@ -11,5 +11,12 @@ export const PATCH = apiHandler(async (req, ctx: RouteContext<"/api/admin/subscr
   const input = await parseBody(req, adminPaymentDecisionSchema);
   if (input.decision === "approve") return json(await approveSubscriptionPayment(admin, id));
   await rejectSubscriptionPayment(admin, id, input.reason);
+  return json({ ok: true });
+});
+
+/** DELETE /api/admin/subscription-payments/:id — delete a rejected payment (approved ones are kept). */
+export const DELETE = apiHandler(async (_req, ctx: RouteContext<"/api/admin/subscription-payments/[id]">) => {
+  const admin = await requireApiUser(["admin"]);
+  await deletePaymentAsAdmin(admin, objectIdSchema.parse((await ctx.params).id));
   return json({ ok: true });
 });

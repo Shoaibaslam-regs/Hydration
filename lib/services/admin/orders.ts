@@ -3,12 +3,13 @@ import { revalidateTag } from "next/cache";
 import { Types } from "mongoose";
 import { ApiError } from "@/lib/api/errors";
 import type { SessionUser } from "@/lib/auth/session";
-import type { ProductType } from "@/lib/catalog";
+import { formatPrice, type ProductType } from "@/lib/catalog";
 import { connectDB } from "@/lib/db/connect";
-import { Order, Shop, User } from "@/lib/db/models";
+import { Order, Review, Shop, User } from "@/lib/db/models";
 import { FINAL_ORDER_STATUSES, type OrderStatus } from "@/lib/orders/status";
 import { paginated, skipFor, type Paginated } from "@/lib/validation/pagination";
 import type { AdminOrderListQuery } from "@/lib/validation/admin";
+import { refreshShopRating } from "../reviews";
 import { shopTag } from "../shops";
 import { listAdminActions, logAdminAction, type AuditEntry } from "./audit";
 
@@ -135,6 +136,26 @@ export async function adminCancelOrder(admin: SessionUser, orderId: string, reas
   if (res.modifiedCount === 0) throw ApiError.conflict("This order was just updated. Refresh and try again.");
 
   await logAdminAction(admin, "order.cancel", "order", order._id, reason);
+  const shop = await Shop.findById(order.shopId, { slug: 1 }).lean();
+  if (shop) revalidateTag(shopTag(shop.slug), { expire: 0 });
+}
+
+/**
+ * Permanently delete a finished order (and its review). Removes it from
+ * everyone's history and from sales reports, so it's for test orders and
+ * mistakes. Unfinished orders must be cancelled first.
+ */
+export async function deleteOrderAsAdmin(admin: SessionUser, orderId: string): Promise<void> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(orderId)) throw ApiError.notFound("Order not found");
+  const order = await Order.findOneAndDelete({ _id: orderId, status: { $in: FINAL_ORDER_STATUSES } }).lean();
+  if (!order) {
+    if (!(await Order.exists({ _id: orderId }))) throw ApiError.notFound("Order not found");
+    throw ApiError.conflict("Only finished orders can be deleted. Cancel it first.");
+  }
+  const review = await Review.findOneAndDelete({ orderId: order._id }).lean();
+  if (review) await refreshShopRating(order.shopId);
+  await logAdminAction(admin, "order.deleted", "shop", order.shopId, `${order.orderNumber} · ${order.status} · ${formatPrice(order.total)}`);
   const shop = await Shop.findById(order.shopId, { slug: 1 }).lean();
   if (shop) revalidateTag(shopTag(shop.slug), { expire: 0 });
 }

@@ -190,3 +190,40 @@ export async function removeDealAsAdmin(admin: SessionUser, dealId: string, reas
   await logAdminAction(admin, "ads.deal.removed", "shop", d.shopId, `"${d.title}": ${reason}`);
   await refreshShopDeal(d.shopId);
 }
+
+/**
+ * The shopkeeper's delete button: ends a running deal now, or deletes an
+ * ended/removed one from their list.
+ */
+export async function removeMyDeal(shop: MyShop, dealId: string): Promise<"ended" | "deleted"> {
+  await connectDB();
+  const shopId = new Types.ObjectId(shop.id);
+  const now = new Date();
+  const d = await Deal.findOne({ _id: dealId, shopId }, { removedAt: 1, endsAt: 1 }).lean();
+  if (!d) throw ApiError.notFound("No deal with that id");
+  if (!d.removedAt && d.endsAt > now) {
+    await endMyDeal(shop, dealId);
+    return "ended";
+  }
+  await Deal.deleteOne({ _id: d._id, shopId });
+  return "deleted";
+}
+
+/**
+ * Admin: a running deal is taken down (reason required, shown to the shop);
+ * an ended or removed one is deleted permanently. Both audited.
+ */
+export async function adminRemoveOrDeleteDeal(admin: SessionUser, dealId: string, reason: string | undefined): Promise<"removed" | "deleted"> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(dealId)) throw ApiError.notFound("Deal not found");
+  const d = await Deal.findById(dealId, { removedAt: 1, endsAt: 1, shopId: 1, title: 1 }).lean();
+  if (!d) throw ApiError.notFound("Deal not found");
+  if (!d.removedAt && d.endsAt > new Date()) {
+    if (!reason) throw ApiError.badRequest("Give a reason", { fieldErrors: { reason: ["Give a reason"] } });
+    await removeDealAsAdmin(admin, dealId, reason);
+    return "removed";
+  }
+  await Deal.deleteOne({ _id: d._id });
+  await logAdminAction(admin, "ads.deal.deleted", "shop", d.shopId, `"${d.title}"`);
+  return "deleted";
+}

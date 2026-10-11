@@ -2,7 +2,7 @@ import { ApiError } from "@/lib/api/errors";
 import { apiHandler, json, parseBody } from "@/lib/api/handler";
 import { requireApiUser } from "@/lib/auth/session";
 import { requireMyShop } from "@/lib/services/my-shop";
-import { getShopOrder, updateShopOrderStatus } from "@/lib/services/shop-orders";
+import { getShopOrder, hideShopOrder, updateShopOrderStatus } from "@/lib/services/shop-orders";
 import { objectIdSchema, orderStatusUpdateSchema } from "@/lib/validation/shopkeeper";
 
 type Ctx = RouteContext<"/api/shopkeeper/orders/[id]">;
@@ -25,4 +25,11 @@ export const GET = apiHandler(async (_req, ctx: Ctx) => {
 export const PATCH = apiHandler(async (req, ctx: Ctx) => {
   const { shop, id } = await context(ctx);
   return json(await updateShopOrderStatus(shop, id, await parseBody(req, orderStatusUpdateSchema)));
+});
+
+/** DELETE /api/shopkeeper/orders/:id — remove a finished order from the list (reports keep it). */
+export const DELETE = apiHandler(async (_req, ctx: Ctx) => {
+  const { shop, id } = await context(ctx);
+  await hideShopOrder(shop, id);
+  return json({ ok: true });
 });

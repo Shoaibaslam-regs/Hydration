@@ -4,6 +4,7 @@ import { AdminActions } from "@/components/admin/admin-actions";
 import { CampaignRequestForm, DealForm } from "@/components/ads/shop-promote-forms";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { MAX_RUNNING_DEALS } from "@/lib/ads/constants";
 import { dayKey } from "@/lib/ads/dates";
@@ -116,6 +117,15 @@ async function PromoteContent() {
                         actions={[{ label: "Withdraw", body: {}, danger: true, confirm: "Withdraw this request?" }]}
                       />
                     )}
+                    {(c.status === "rejected" || c.status === "cancelled" || (c.status === "approved" && new Date(c.endsAt) <= new Date())) && (
+                      <DeleteButton
+                        endpoint={`/api/shopkeeper/campaigns/${c.id}`}
+                        variant="icon"
+                        label="Delete from history"
+                        confirmTitle="Delete this campaign from your history?"
+                        confirmMessage="It's removed from your list. The Aqua team keeps its record."
+                      />
+                    )}
                   </span>
                 </li>
               );
@@ -155,9 +165,18 @@ async function PromoteContent() {
                     actions={[{ label: "End now", body: {}, danger: true, confirm: `End “${d.title}” now?` }]}
                   />
                 ) : (
-                  <Badge tone={d.state === "removed" && d.removedBy === "admin" ? "danger" : "neutral"}>
-                    {d.state === "removed" ? (d.removedBy === "admin" ? "Removed" : "Ended") : "Ended"}
-                  </Badge>
+                  <span className="flex items-center gap-2">
+                    <Badge tone={d.state === "removed" && d.removedBy === "admin" ? "danger" : "neutral"}>
+                      {d.state === "removed" ? (d.removedBy === "admin" ? "Removed" : "Ended") : "Ended"}
+                    </Badge>
+                    <DeleteButton
+                      endpoint={`/api/shopkeeper/deals/${d.id}`}
+                      variant="icon"
+                      label="Delete deal"
+                      confirmTitle={`Delete “${d.title}”?`}
+                      confirmMessage="It's removed from your deals list."
+                    />
+                  </span>
                 )}
               </li>
             ))}

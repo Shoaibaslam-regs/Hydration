@@ -19,6 +19,7 @@ import {
 import { requireRole } from "@/lib/auth/session";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { getAdminShop } from "@/lib/services/admin/shops";
+import { listShopReviewsForAdmin } from "@/lib/services/reviews";
 
 export const metadata: Metadata = { title: "Shop · Admin" };
 
@@ -33,7 +34,7 @@ export default function AdminShopPage({ params }: PageProps<"/admin/shops/[id]">
 async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["params"] }) {
   const { id } = await params;
   await requireRole(["admin"], `/admin/shops/${id}`);
-  const shop = await getAdminShop(id);
+  const [shop, reviews] = await Promise.all([getAdminShop(id), listShopReviewsForAdmin(id)]);
   if (!shop) notFound();
 
   const actions = ADMIN_SHOP_TRANSITIONS[shop.status].map((to) => ({
@@ -196,7 +197,42 @@ async function ShopDetail({ params }: { params: PageProps<"/admin/shops/[id]">["
         </Card>
       </div>
 
-      <AuditLog entries={shop.history} />
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <CardTitle>Reviews</CardTitle>
+          <span className="text-sm text-muted-foreground">
+            {shop.rating.count ? `${shop.rating.average.toFixed(1)} ★ from ${shop.rating.count}` : "No reviews"}
+          </span>
+        </div>
+        {reviews.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No reviews yet.</p>
+        ) : (
+          <ul className="divide-y divide-border text-sm">
+            {reviews.map((r) => (
+              <li key={r.id} className="flex flex-col gap-2 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="font-medium">{r.authorName}</span>{" "}
+                    <span className="text-warning" aria-label={`${r.rating} out of 5 stars`}>
+                      {"★".repeat(r.rating)}
+                    </span>
+                    <span className="text-muted-foreground"> · {formatDateTime(r.createdAt)}</span>
+                    {r.comment && <span className="block break-words">{r.comment}</span>}
+                  </span>
+                </div>
+                <AdminActions
+                  endpoint={`/api/admin/reviews/${r.id}`}
+                  method="DELETE"
+                  actions={[{ label: "Delete review", body: {}, needsReason: true, danger: true }]}
+                  reasonHint="Kept in the admin history. The shop's rating is recalculated."
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <AuditLog entries={shop.history} target={{ type: "shop", id: shop.id }} />
 
       <Card className="flex flex-col gap-3 border-danger/40">
         <CardTitle>Danger zone</CardTitle>

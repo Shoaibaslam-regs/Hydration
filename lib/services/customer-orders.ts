@@ -8,7 +8,7 @@ import { CAN_LABEL, CAN_SIZE_LITERS, type ProductType } from "@/lib/catalog";
 import { connectDB } from "@/lib/db/connect";
 import { Address, Order, Review, Shop, User } from "@/lib/db/models";
 import { distanceKm } from "@/lib/geo";
-import { canCustomerMove, REVIEWABLE_STATUS, type OrderStatus } from "@/lib/orders/status";
+import { canCustomerMove, FINAL_ORDER_STATUSES, REVIEWABLE_STATUS, type OrderStatus } from "@/lib/orders/status";
 import { paginated, skipFor, type Paginated, type Pagination } from "@/lib/validation/pagination";
 import type { OrderCreateInput } from "@/lib/validation/customer";
 import { hasActivePlan } from "./platform-settings";
@@ -153,7 +153,7 @@ export async function listCustomerOrders(
   query: Pagination & { status?: OrderStatus },
 ): Promise<Paginated<CustomerOrderSummary>> {
   await connectDB();
-  const filter: Record<string, unknown> = { customerId: new Types.ObjectId(userId) };
+  const filter: Record<string, unknown> = { customerId: new Types.ObjectId(userId), hiddenForCustomer: { $ne: true } };
   if (query.status) filter.status = query.status;
   const [rows, total] = await Promise.all([
     Order.find(filter, { statusHistory: 0 }).sort({ createdAt: -1, _id: -1 }).skip(skipFor(query)).limit(query.limit).lean(),
@@ -167,7 +167,7 @@ export async function listCustomerOrders(
 export async function getCustomerOrder(userId: string, orderId: string): Promise<CustomerOrderDetail | null> {
   if (!Types.ObjectId.isValid(orderId)) return null;
   await connectDB();
-  const o = (await Order.findOne({ _id: orderId, customerId: new Types.ObjectId(userId) }).lean()) as unknown as OrderLean | null;
+  const o = (await Order.findOne({ _id: orderId, customerId: new Types.ObjectId(userId), hiddenForCustomer: { $ne: true } }).lean()) as unknown as OrderLean | null;
   if (!o) return null;
   // Opening the order clears its notification.
   if (o.customerUnread) await Order.updateOne({ _id: o._id }, { $set: { customerUnread: false } });
@@ -220,4 +220,31 @@ export async function cancelCustomerOrder(userId: string, orderId: string, note?
   }
   const shop = await Shop.findById(updated.shopId, { slug: 1 }).lean();
   if (shop) revalidateTag(shopTag(shop.slug), { expire: 0 });
+}
+
+/**
+ * Remove a finished order (delivered, rejected or cancelled) from the
+ * customer's own history. The shop's copy and its reports are untouched.
+ */
+export async function hideCustomerOrder(userId: string, orderId: string): Promise<void> {
+  await connectDB();
+  const customerId = new Types.ObjectId(userId);
+  const res = await Order.updateOne(
+    { _id: orderId, customerId, status: { $in: FINAL_ORDER_STATUSES } },
+    { $set: { hiddenForCustomer: true, customerUnread: false } },
+  );
+  if (res.matchedCount === 0) {
+    if (!(await Order.exists({ _id: orderId, customerId }))) throw ApiError.notFound("Order not found");
+    throw ApiError.conflict("Only finished orders can be removed. Cancel it first if it's still pending.");
+  }
+}
+
+/** Remove every finished order from the customer's history. Returns how many. */
+export async function clearCustomerOrderHistory(userId: string): Promise<number> {
+  await connectDB();
+  const res = await Order.updateMany(
+    { customerId: new Types.ObjectId(userId), status: { $in: FINAL_ORDER_STATUSES }, hiddenForCustomer: { $ne: true } },
+    { $set: { hiddenForCustomer: true, customerUnread: false } },
+  );
+  return res.modifiedCount;
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PasswordForm, ProfileForm } from "@/components/customer/profile-forms";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
+import { DeleteAccount } from "@/components/account/delete-account";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
 import { getProfile } from "@/lib/services/users";
@@ -33,6 +34,7 @@ async function ProfileContent() {
         <CardTitle>Change password</CardTitle>
         <PasswordForm />
       </Card>
+      <DeleteAccount role="customer" />
     </div>
   );
 }

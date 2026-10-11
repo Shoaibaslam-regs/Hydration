@@ -1,7 +1,7 @@
 import { ApiError } from "@/lib/api/errors";
 import { apiHandler, json, parseBody } from "@/lib/api/handler";
 import { requireApiUser } from "@/lib/auth/session";
-import { adminCancelOrder, getAdminOrder } from "@/lib/services/admin/orders";
+import { adminCancelOrder, deleteOrderAsAdmin, getAdminOrder } from "@/lib/services/admin/orders";
 import { adminOrderCancelSchema } from "@/lib/validation/admin";
 import { objectIdSchema } from "@/lib/validation/shopkeeper";
 
@@ -22,4 +22,11 @@ export const PATCH = apiHandler(async (req, ctx: Ctx) => {
   const { reason } = await parseBody(req, adminOrderCancelSchema);
   await adminCancelOrder(admin, id, reason);
   return json(await getAdminOrder(id));
+});
+
+/** DELETE /api/admin/orders/:id — permanently delete a finished order (and its review). */
+export const DELETE = apiHandler(async (_req, ctx: Ctx) => {
+  const admin = await requireApiUser(["admin"]);
+  await deleteOrderAsAdmin(admin, objectIdSchema.parse((await ctx.params).id));
+  return json({ ok: true });
 });

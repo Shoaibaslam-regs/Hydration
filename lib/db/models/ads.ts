@@ -14,6 +14,8 @@ const campaignSchema = new Schema(
     reviewedAt: { type: Date },
     /** Shown to the shopkeeper when rejected or cancelled. */
     reviewReason: { type: String, default: "", maxlength: 300 },
+    /** Removed from the shop's own history (finished campaigns only); admins still see it. */
+    hiddenForShop: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

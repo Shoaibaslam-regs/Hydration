@@ -102,7 +102,7 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
         </Card>
       )}
 
-      <AuditLog entries={user.history} />
+      <AuditLog entries={user.history} target={{ type: "user", id: user.id }} />
 
       {!isSelf && (
         <Card className="flex flex-col gap-3 border-danger/40">

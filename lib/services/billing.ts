@@ -216,3 +216,31 @@ export async function countShopsWithoutActivePlan(): Promise<number> {
     $or: [{ subscription: null }, { "subscription.endsAt": { $lte: new Date() } }],
   });
 }
+
+/**
+ * The shopkeeper cancels a payment still waiting for review (e.g. a typo in
+ * the reference) or deletes a rejected one. Approved payments are financial
+ * records and can't be deleted.
+ */
+export async function deleteMyPayment(shop: MyShop, paymentId: string): Promise<void> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(paymentId)) throw ApiError.notFound("Payment not found");
+  const shopId = new Types.ObjectId(shop.id);
+  const res = await SubscriptionPayment.deleteOne({ _id: paymentId, shopId, status: { $in: ["pending", "rejected"] } });
+  if (res.deletedCount === 0) {
+    if (!(await SubscriptionPayment.exists({ _id: paymentId, shopId }))) throw ApiError.notFound("Payment not found");
+    throw ApiError.conflict("Approved payments are kept as your billing record and can't be deleted.");
+  }
+}
+
+/** Admin deletes a rejected payment. Approved ones are revenue records and stay. Audited. */
+export async function deletePaymentAsAdmin(admin: SessionUser, paymentId: string): Promise<void> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(paymentId)) throw ApiError.notFound("Payment not found");
+  const p = await SubscriptionPayment.findOneAndDelete({ _id: paymentId, status: "rejected" }).lean();
+  if (!p) {
+    if (!(await SubscriptionPayment.exists({ _id: paymentId }))) throw ApiError.notFound("Payment not found");
+    throw ApiError.conflict("Only rejected payments can be deleted. Approved payments are revenue records.");
+  }
+  await logAdminAction(admin, "subscription.deleted", "shop", p.shopId, `ref. ${p.reference}`);
+}

@@ -4,6 +4,7 @@ import { PaymentForm } from "@/components/billing/payment-form";
 import { PaymentStatusBadge } from "@/components/billing/payment-status-badge";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
 import { PAYMENT_METHOD_LABELS } from "@/lib/billing/constants";
@@ -67,6 +68,15 @@ async function BillingContent() {
             {PAYMENT_METHOD_LABELS[waiting.method]} ref. {waiting.reference}. Sent {formatDateTime(waiting.createdAt)}. We&apos;ll
             activate your plan once we&apos;ve confirmed it.
           </CardDescription>
+          <DeleteButton
+            endpoint={`/api/shopkeeper/billing/${waiting.id}`}
+            variant="link"
+            label="Made a mistake? Cancel this payment"
+            confirmTitle="Cancel this payment?"
+            confirmMessage="It won't be reviewed. You can send a new one with the right details."
+            confirmLabel="Cancel payment"
+            className="mt-1"
+          />
         </Card>
       ) : (
         <Card className="flex flex-col gap-4">
@@ -112,7 +122,23 @@ async function BillingContent() {
                     <span className="text-xs text-danger">Reason: {p.reviewReason}</span>
                   )}
                 </span>
-                <PaymentStatusBadge status={p.status} />
+                <span className="flex items-center gap-2">
+                  <PaymentStatusBadge status={p.status} />
+                  {(p.status === "pending" || p.status === "rejected") && (
+                    <DeleteButton
+                      endpoint={`/api/shopkeeper/billing/${p.id}`}
+                      variant="icon"
+                      label={p.status === "pending" ? "Cancel this payment" : "Delete this payment"}
+                      confirmTitle={p.status === "pending" ? "Cancel this payment?" : "Delete this rejected payment?"}
+                      confirmMessage={
+                        p.status === "pending"
+                          ? `Ref. ${p.reference} won't be reviewed. If you already paid, send it again with the right details.`
+                          : `Ref. ${p.reference} is removed from your history.`
+                      }
+                      confirmLabel={p.status === "pending" ? "Cancel payment" : "Delete"}
+                    />
+                  )}
+                </span>
               </li>
             ))}
           </ul>

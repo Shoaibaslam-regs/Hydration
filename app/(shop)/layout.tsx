@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { SupportHelpBox } from "@/components/support/help-box";
 
 export default function ShopkeeperLayout({ children }: LayoutProps<"/">) {
   return (
@@ -11,7 +12,9 @@ export default function ShopkeeperLayout({ children }: LayoutProps<"/">) {
         { href: "/shop/promote", label: "Promote" },
         { href: "/shop/billing", label: "Billing" },
         { href: "/shop/profile", label: "Shop profile" },
+        { href: "/shop/support", label: "Contact Aqua" },
       ]}
+      navFooter={<SupportHelpBox />}
     >
       {children}
     </DashboardShell>

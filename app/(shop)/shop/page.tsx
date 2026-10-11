@@ -5,6 +5,7 @@ import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { ShopAvailability } from "@/components/shopkeeper/shop-availability";
 import { ShopStatusBanner } from "@/components/shopkeeper/shop-status-banner";
+import { NewSupportThreadForm } from "@/components/support/new-thread-form";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
@@ -127,6 +128,19 @@ async function ShopOverview() {
         <Link href="/shop/billing" className={buttonClasses({ variant: plan?.active && !plan.isTrial ? "secondary" : "primary", size: "sm" })}>
           {plan?.active && !plan.isTrial ? "Billing" : `Pay ${formatPrice(PLANS[0].monthlyPrice)}/month`}
         </Link>
+      </Card>
+
+      <Card className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle>Contact the Aqua team</CardTitle>
+            <CardDescription>Stuck with a payment, an order or your listing? Send us a message and we&apos;ll reply in “Contact with team”.</CardDescription>
+          </div>
+          <Link href="/shop/support" className="text-sm font-medium text-primary hover:underline">
+            Your conversations →
+          </Link>
+        </div>
+        <NewSupportThreadForm compact />
       </Card>
     </div>
   );

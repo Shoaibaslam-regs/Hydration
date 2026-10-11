@@ -3,12 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CancelOrderButton, ReviewForm } from "@/components/customer/order-customer-actions";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
-import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/orders/status";
+import { ORDER_STATUS_LABELS, type OrderStatus, FINAL_ORDER_STATUSES } from "@/lib/orders/status";
 import { getCustomerOrder } from "@/lib/services/customer-orders";
 import { cn } from "@/lib/utils";
 
@@ -130,6 +131,14 @@ async function OrderDetail({
             <span className="text-border">{"★".repeat(5 - order.review.rating)}</span>
           </p>
           {order.review.comment && <p className="text-sm">{order.review.comment}</p>}
+          <DeleteButton
+            endpoint={`/api/customer/orders/${order.id}/review`}
+            variant="link"
+            label="Delete review"
+            confirmTitle="Delete your review?"
+            confirmMessage="It's removed from the shop's page and its rating is recalculated. You can write a new one afterwards."
+            className="mt-1"
+          />
         </Card>
       ) : (
         order.canReview && (
@@ -138,6 +147,20 @@ async function OrderDetail({
             <ReviewForm orderId={order.id} />
           </Card>
         )
+      )}
+
+      {FINAL_ORDER_STATUSES.includes(order.status) && (
+        <div>
+          <DeleteButton
+            endpoint={`/api/customer/orders/${order.id}`}
+            variant="link"
+            label="Remove from my orders"
+            confirmTitle="Remove this order from your history?"
+            confirmMessage="It disappears from your orders. The shop keeps its own record."
+            confirmLabel="Remove"
+            redirectTo="/account/orders"
+          />
+        </div>
       )}
     </div>
   );

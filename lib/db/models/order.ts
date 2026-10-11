@@ -57,6 +57,9 @@ const orderSchema = new Schema(
     status: { type: String, enum: ORDER_STATUSES, required: true, default: "pending" },
     /** True when the shop or an admin changed the status and the customer hasn't opened the order since. */
     customerUnread: { type: Boolean, default: false },
+    /** Removed from the customer's / the shop's own order list. Reports and the other side still see it. */
+    hiddenForCustomer: { type: Boolean, default: false },
+    hiddenForShop: { type: Boolean, default: false },
     statusHistory: { type: [statusEventSchema], default: [] },
     // Customer order payment. Kept separate from shop subscription billing.
     payment: {
