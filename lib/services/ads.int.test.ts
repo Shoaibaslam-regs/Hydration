@@ -6,7 +6,19 @@ import { bannerInputSchema, bannerLinkSchema } from "@/lib/validation/ads";
 import { shopSearchSchema } from "@/lib/validation/shops";
 import { createShop, createUser, HOME } from "@/test/fixtures";
 import { setupTestDb } from "@/test/db";
-import { bannerClickTarget, createBanner, getBannerImage, listRunningBanners, saveBannerImage, sniffImageType, updateBanner } from "./ads/banners";
+import {
+  bannerClickTarget,
+  createBanner,
+  deleteBanner,
+  getBannerImage,
+  getBannerVideo,
+  listRunningBanners,
+  saveBannerImage,
+  saveBannerVideo,
+  sniffImageType,
+  sniffVideoType,
+  updateBanner,
+} from "./ads/banners";
 import { createMyDeal, endMyDeal, listLatestDeals, removeDealAsAdmin } from "./ads/deals";
 import { decideCampaign, findSponsoredShops, isSponsoredNow, requestCampaign, withdrawMyCampaign } from "./ads/sponsored";
 import { adTotals, recordAdEvent } from "./ads/stats";
@@ -165,6 +177,32 @@ describe("banners", () => {
     const stored = await getBannerImage(id);
     expect(stored?.contentType).toBe("image/png");
     expect(new Uint8Array(stored!.data)).toEqual(png);
+  });
+
+  it("accepts short MP4/WebM videos by their bytes, and attaches, replaces and deletes them with the banner", async () => {
+    const mp4 = new Uint8Array([0, 0, 0, 0x18, ...new TextEncoder().encode("ftypmp42"), 0, 0, 0, 0]);
+    const webm = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x9f]);
+    expect(sniffVideoType(mp4)).toBe("video/mp4");
+    expect(sniffVideoType(webm)).toBe("video/webm");
+    expect(sniffVideoType(png)).toBeNull();
+    await expect(saveBannerVideo(new TextEncoder().encode("<html>"))).rejects.toMatchObject({ status: 400 });
+    await expect(saveBannerVideo(new Uint8Array(8 * 1024 * 1024 + 1))).rejects.toMatchObject({ status: 413 });
+
+    const admin = await createUser("admin", "Admin");
+    const first = await saveBannerVideo(mp4);
+    expect((await getBannerVideo(first))?.contentType).toBe("video/mp4");
+    const input = bannerInputSchema.parse({ title: "Watch this", linkUrl: "/shops", startDate: today(), endDate: today(), videoId: first });
+    const id = await createBanner(admin, input);
+    expect((await listRunningBanners())[0].videoUrl).toBe(`/api/banner-videos/${first}`);
+
+    // Replacing the clip drops the old one; deleting the banner drops the new one.
+    const second = await saveBannerVideo(webm);
+    await updateBanner(admin, id, { ...input, videoId: second });
+    expect(await getBannerVideo(first)).toBeNull();
+    await deleteBanner(admin, id);
+    expect(await getBannerVideo(second)).toBeNull();
+
+    await expect(createBanner(admin, { ...input, videoId: "0123456789abcdef01234567" })).rejects.toMatchObject({ status: 400 });
   });
 
   it("shows and links only while running and switched on", async () => {

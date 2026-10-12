@@ -49,6 +49,7 @@ export const bannerInputSchema = z
     sponsorName: z.string().trim().max(60).default(""),
     linkUrl: bannerLinkSchema,
     imageId: z.string().regex(/^[a-f0-9]{24}$/i).nullable().default(null),
+    videoId: z.string().regex(/^[a-f0-9]{24}$/i).nullable().default(null),
     startDate: dateString,
     endDate: dateString,
     isActive: z.boolean().default(true),

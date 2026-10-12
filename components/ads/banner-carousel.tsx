@@ -1,12 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { PublicBanner } from "@/lib/services/ads/banners";
 import { cn } from "@/lib/utils";
 import { AdChip } from "./ad-chip";
 import { AdImpression } from "./ad-impression";
 
 const ROTATE_MS = 7000;
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(onChange: () => void) {
+  const mq = window.matchMedia(REDUCED_MOTION);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+/** The user's reduced-motion setting, kept in sync; false while server-rendering. */
+function useReducedMotion(): boolean {
+  return useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION).matches, () => false);
+}
 
 /**
  * Home page advertisements in the gold "premium" style, clearly marked as
@@ -14,23 +26,43 @@ const ROTATE_MS = 7000;
  * seconds, pauses on hover/focus or when the user prefers reduced motion, and
  * has arrows and dots for manual control. Links go through the click counter
  * as plain <a>s (never prefetched).
+ *
+ * A banner with a short video plays it muted (never with reduced motion) with
+ * play/pause and sound buttons; the carousel moves on when the clip ends
+ * instead of on the timer.
  */
 export function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const reducedMotion = useReducedMotion();
+  const videoRef = useRef<HTMLVideoElement>(null);
   const count = banners.length;
+  const current = Math.min(index, Math.max(count - 1, 0));
+  const hasVideo = Boolean(banners[current]?.videoUrl);
 
   useEffect(() => {
-    if (count < 2 || paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // A playing clip advances the carousel itself when it ends.
+    if (count < 2 || paused || reducedMotion || (hasVideo && videoPlaying)) return;
     const t = setInterval(() => setIndex((i) => (i + 1) % count), ROTATE_MS);
     return () => clearInterval(t);
-  }, [count, paused]);
+  }, [count, paused, reducedMotion, hasVideo, videoPlaying]);
 
   if (count === 0) return null;
-  const current = Math.min(index, count - 1);
   const b = banners[current];
-  const go = (delta: number) => setIndex((current + delta + count) % count);
-  const onImage = Boolean(b.imageUrl);
+  const go = (delta: number) => {
+    setVideoPlaying(false);
+    setIndex((current + delta + count) % count);
+  };
+  const onImage = Boolean(b.imageUrl || b.videoUrl);
+
+  function togglePlay() {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) void v.play().catch(() => {});
+    else v.pause();
+  }
 
   return (
     <section
@@ -53,7 +85,29 @@ export function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
             )}
             aria-label={`Advertisement${b.sponsorName ? ` from ${b.sponsorName}` : ""}: ${b.title}. ${b.ctaLabel}`}
           >
-            {onImage ? (
+            {b.videoUrl ? (
+              <>
+                <video
+                  key={b.id}
+                  ref={videoRef}
+                  src={b.videoUrl}
+                  poster={b.imageUrl ?? undefined}
+                  autoPlay={!reducedMotion}
+                  muted={muted}
+                  loop={count < 2}
+                  playsInline
+                  preload="metadata"
+                  aria-hidden
+                  onPlay={() => setVideoPlaying(true)}
+                  // Autoplay can start before hydration, missing the play event; catch up here.
+                  onTimeUpdate={(e) => !videoPlaying && !e.currentTarget.paused && setVideoPlaying(true)}
+                  onPause={() => setVideoPlaying(false)}
+                  onEnded={() => count > 1 && go(1)}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <span aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/10 sm:via-black/40 sm:to-transparent" />
+              </>
+            ) : onImage ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element -- served from our own API with long caching; sizes vary per banner */}
                 <img
@@ -82,6 +136,8 @@ export function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
               className={cn(
                 "animate-banner-in relative flex max-w-2xl flex-col justify-center gap-2 px-6 pb-5 pt-11 sm:px-16 sm:py-6",
                 onImage ? "text-white" : "text-foreground",
+                // Room for the video buttons in the bottom corner on phones.
+                b.videoUrl && "pb-14",
               )}
             >
               <span className="text-xl font-black uppercase leading-tight tracking-tight sm:text-3xl">{b.title}</span>
@@ -101,6 +157,34 @@ export function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
           </a>
         </AdImpression>
 
+        {b.videoUrl && (
+          <div className="absolute bottom-3 right-3 flex gap-1.5">
+            <VideoButton onClick={togglePlay} label={videoPlaying ? "Pause video" : "Play video"}>
+              {videoPlaying ? (
+                <path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />
+              ) : (
+                <path fill="currentColor" d="M8 5.5v13l11-6.5z" />
+              )}
+            </VideoButton>
+            <VideoButton
+              onClick={() => {
+                setMuted((m) => !m);
+                // Turning the sound on also starts a paused clip.
+                if (muted && videoRef.current?.paused) void videoRef.current.play().catch(() => {});
+              }}
+              label={muted ? "Turn sound on" : "Turn sound off"}
+              pressed={!muted}
+            >
+              <path fill="currentColor" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+              {muted ? (
+                <path d="M15.5 9.5l5 5m0-5l-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+              ) : (
+                <path d="M15 9a4 4 0 010 6m2.5-8.5a7.5 7.5 0 010 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+              )}
+            </VideoButton>
+          </div>
+        )}
+
         {count > 1 && (
           <>
             <ArrowButton side="left" onClick={() => go(-1)} label="Previous advertisement" />
@@ -115,7 +199,7 @@ export function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
             <button
               key={x.id}
               type="button"
-              onClick={() => setIndex(i)}
+              onClick={() => go(i - current)}
               aria-label={`Show advertisement ${i + 1} of ${count}`}
               aria-current={i === current ? "true" : undefined}
               className={cn("h-2 rounded-full transition-all", i === current ? "w-6 bg-premium" : "w-2 bg-border hover:bg-premium/50")}
@@ -139,6 +223,22 @@ function ArrowButton({ side, onClick, label }: { side: "left" | "right"; onClick
       )}
     >
       <span aria-hidden>{side === "left" ? "‹" : "›"}</span>
+    </button>
+  );
+}
+
+function VideoButton({ onClick, label, pressed, children }: { onClick: () => void; label: string; pressed?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={pressed}
+      className="flex size-8 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-premium/50 backdrop-blur-sm transition-colors hover:bg-premium hover:text-premium-foreground"
+    >
+      <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
+        {children}
+      </svg>
     </button>
   );
 }

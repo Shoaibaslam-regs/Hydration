@@ -49,6 +49,7 @@ async function EditBanner({ params }: { params: PageProps<"/admin/ads/banners/[i
             sponsorName: b.sponsorName,
             linkUrl: b.linkUrl,
             imageId: b.imageId,
+            videoId: b.videoId,
             startDate: b.startDate,
             endDate: b.endDate,
             isActive: b.isActive,

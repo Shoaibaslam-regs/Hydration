@@ -50,6 +50,8 @@ const bannerSchema = new Schema(
     /** Same-site path ("/shops/x") or an https URL. */
     linkUrl: { type: String, required: true, trim: true, maxlength: 500 },
     imageId: { type: Schema.Types.ObjectId, ref: "BannerImage", default: null },
+    /** Optional short video clip; the image (if any) is its poster. */
+    videoId: { type: Schema.Types.ObjectId, ref: "BannerVideo", default: null },
     startsAt: { type: Date, required: true },
     endsAt: { type: Date, required: true },
     isActive: { type: Boolean, default: true },
@@ -61,6 +63,16 @@ bannerSchema.index({ isActive: 1, startsAt: 1, endsAt: 1, sortOrder: 1 });
 
 /** Uploaded banner images, stored in MongoDB (no separate file storage needed). */
 const bannerImageSchema = new Schema(
+  {
+    contentType: { type: String, required: true },
+    size: { type: Number, required: true },
+    data: { type: Buffer, required: true },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } },
+);
+
+/** Uploaded short banner videos (MP4/WebM, a few MB), stored like the images. */
+const bannerVideoSchema = new Schema(
   {
     contentType: { type: String, required: true },
     size: { type: Number, required: true },
@@ -90,10 +102,12 @@ const createCampaign = () => model("SponsoredCampaign", campaignSchema);
 const createDeal = () => model("Deal", dealSchema);
 const createBanner = () => model("Banner", bannerSchema);
 const createBannerImage = () => model("BannerImage", bannerImageSchema);
+const createBannerVideo = () => model("BannerVideo", bannerVideoSchema);
 const createAdStat = () => model("AdStat", adStatSchema);
 // Reuse compiled models across dev hot reloads.
 export const SponsoredCampaign = (models.SponsoredCampaign as ReturnType<typeof createCampaign> | undefined) ?? createCampaign();
 export const Deal = (models.Deal as ReturnType<typeof createDeal> | undefined) ?? createDeal();
 export const Banner = (models.Banner as ReturnType<typeof createBanner> | undefined) ?? createBanner();
 export const BannerImage = (models.BannerImage as ReturnType<typeof createBannerImage> | undefined) ?? createBannerImage();
+export const BannerVideo = (models.BannerVideo as ReturnType<typeof createBannerVideo> | undefined) ?? createBannerVideo();
 export const AdStat = (models.AdStat as ReturnType<typeof createAdStat> | undefined) ?? createAdStat();

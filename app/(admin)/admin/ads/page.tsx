@@ -245,7 +245,10 @@ async function BannersTab() {
                 <li key={b.id}>
                   <Link href={`/admin/ads/banners/${b.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-muted/50">
                     <span className="flex min-w-0 flex-col">
-                      <span className="font-medium">{b.title}</span>
+                      <span className="flex items-center gap-2 font-medium">
+                        {b.title}
+                        {b.videoId && <Badge tone="info">▶ Video</Badge>}
+                      </span>
                       <span className="truncate text-xs text-muted-foreground">
                         {b.startDate} → {b.endDate} · {b.linkUrl}
                       </span>

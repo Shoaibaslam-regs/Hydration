@@ -16,45 +16,74 @@ export type BannerFormValues = {
   sponsorName: string;
   linkUrl: string;
   imageId: string | null;
+  videoId: string | null;
   startDate: string;
   endDate: string;
   isActive: boolean;
   sortOrder: number;
 };
 
-const MAX_BYTES = 2 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 8 * 1024 * 1024;
+const MAX_VIDEO_SECONDS = 30;
 
-/** Create or edit a home-page banner. Images upload first (multipart), then the banner saves with the image's id. */
+/** A clip's length in seconds, read in the browser before uploading. */
+function videoDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(v.duration);
+    };
+    v.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(Number.NaN);
+    };
+    v.src = url;
+  });
+}
+
+/**
+ * Create or edit a home-page banner. The image and the optional short video
+ * upload first (multipart), then the banner saves with their ids.
+ */
 export function BannerEditor({ bannerId, initial }: { bannerId?: string; initial: BannerFormValues }) {
   const router = useRouter();
   const [imageId, setImageId] = useState(initial.imageId);
-  const [uploading, setUploading] = useState(false);
+  const [videoId, setVideoId] = useState(initial.videoId);
+  const [uploading, setUploading] = useState<"imageId" | "videoId" | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Errors>({});
 
-  async function upload(file: File | undefined) {
+  async function upload(kind: "imageId" | "videoId", file: File | undefined) {
     if (!file) return;
     setError(null);
-    if (file.size > MAX_BYTES) {
-      setFieldErrors({ imageId: ["The image must be 2 MB or smaller"] });
-      return;
+    const fail = (message: string) => setFieldErrors({ [kind]: [message] });
+    if (kind === "imageId" && file.size > MAX_IMAGE_BYTES) return fail("The image must be 2 MB or smaller");
+    if (kind === "videoId") {
+      if (file.size > MAX_VIDEO_BYTES) return fail("The video must be 8 MB or smaller");
+      const seconds = await videoDuration(file);
+      if (Number.isNaN(seconds)) return fail("This browser can't read that video. Use an MP4 or WebM file.");
+      if (seconds > MAX_VIDEO_SECONDS + 0.5) return fail(`Keep it short: ${MAX_VIDEO_SECONDS} seconds or less (this one is ${Math.round(seconds)} s)`);
     }
-    setUploading(true);
+    setUploading(kind);
     const form = new FormData();
     form.set("file", file);
     try {
-      const res = await fetch("/api/admin/banner-images", { method: "POST", body: form });
+      const res = await fetch(kind === "imageId" ? "/api/admin/banner-images" : "/api/admin/banner-videos", { method: "POST", body: form });
       const body = await res.json().catch(() => null);
-      if (!res.ok) setFieldErrors({ imageId: [body?.error?.message ?? "Upload failed"] });
+      if (!res.ok) fail(body?.error?.message ?? "Upload failed");
       else {
-        setImageId(body.id);
+        (kind === "imageId" ? setImageId : setVideoId)(body.id);
         setFieldErrors({});
       }
     } catch {
-      setFieldErrors({ imageId: ["Network error. Try again."] });
+      fail("Network error. Try again.");
     }
-    setUploading(false);
+    setUploading(null);
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -69,6 +98,7 @@ export function BannerEditor({ bannerId, initial }: { bannerId?: string; initial
       sponsorName: f.get("sponsorName") ?? "",
       linkUrl: f.get("linkUrl"),
       imageId,
+      videoId,
       startDate: f.get("startDate"),
       endDate: f.get("endDate"),
       isActive: f.get("isActive") === "on",
@@ -124,14 +154,52 @@ export function BannerEditor({ bannerId, initial }: { bannerId?: string; initial
                 {...p}
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
-                onChange={(e) => upload(e.target.files?.[0])}
-                disabled={uploading}
+                onChange={(e) => upload("imageId", e.target.files?.[0])}
+                disabled={uploading !== null}
                 className="max-w-xs"
               />
-              {uploading && <span className="text-sm text-muted-foreground">Uploading…</span>}
-              {imageId && !uploading && (
+              {uploading === "imageId" && <span className="text-sm text-muted-foreground">Uploading…</span>}
+              {imageId && uploading !== "imageId" && (
                 <Button type="button" variant="ghost" onClick={() => setImageId(null)}>
                   Remove image
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </Field>
+
+      <Field
+        label="Short video (optional)"
+        hint={`MP4 or WebM, up to ${MAX_VIDEO_SECONDS} seconds and 8 MB. It plays silently on a loop in the banner (visitors can turn the sound on); the image above shows while it loads.`}
+        error={fieldErrors.videoId?.[0]}
+      >
+        {(p) => (
+          <div className="flex flex-col gap-2">
+            {videoId && (
+              <video
+                src={`/api/banner-videos/${videoId}`}
+                poster={imageId ? `/api/banner-images/${imageId}` : undefined}
+                controls
+                muted
+                playsInline
+                preload="metadata"
+                className="aspect-[3/1] w-full max-w-md rounded-lg border border-border bg-black object-cover"
+              />
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                {...p}
+                type="file"
+                accept="video/mp4,video/webm"
+                onChange={(e) => upload("videoId", e.target.files?.[0])}
+                disabled={uploading !== null}
+                className="max-w-xs"
+              />
+              {uploading === "videoId" && <span className="text-sm text-muted-foreground">Uploading video…</span>}
+              {videoId && uploading !== "videoId" && (
+                <Button type="button" variant="ghost" onClick={() => setVideoId(null)}>
+                  Remove video
                 </Button>
               )}
             </div>
@@ -154,7 +222,7 @@ export function BannerEditor({ bannerId, initial }: { bannerId?: string; initial
         <input type="checkbox" name="isActive" defaultChecked={initial.isActive} className="size-4 accent-[var(--primary)]" />
         Show this banner (untick to pause it)
       </label>
-      <Button type="submit" disabled={pending || uploading} className="self-start">
+      <Button type="submit" disabled={pending || uploading !== null} className="self-start">
         {pending ? "Saving…" : bannerId ? "Save banner" : "Create banner"}
       </Button>
     </form>

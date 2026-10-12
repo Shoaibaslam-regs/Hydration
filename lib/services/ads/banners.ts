@@ -5,13 +5,14 @@ import { endOfDayInZone, startOfDayInZone, dayKey } from "@/lib/ads/dates";
 import { ApiError } from "@/lib/api/errors";
 import type { SessionUser } from "@/lib/auth/session";
 import { connectDB } from "@/lib/db/connect";
-import { Banner, BannerImage } from "@/lib/db/models";
+import { Banner, BannerImage, BannerVideo } from "@/lib/db/models";
 import type { BannerInput } from "@/lib/validation/ads";
 import { logAdminAction } from "../admin/audit";
 import { adTotals, type AdTotals } from "./stats";
 
 export const BANNERS_TAG = "ads-banners";
 export const MAX_BANNER_IMAGE_BYTES = 2 * 1024 * 1024;
+export const MAX_BANNER_VIDEO_BYTES = 8 * 1024 * 1024;
 
 export type PublicBanner = {
   id: string;
@@ -21,11 +22,14 @@ export type PublicBanner = {
   /** Advertiser name ("Sponsored by …"); empty for Aqua's own banners. */
   sponsorName: string;
   imageUrl: string | null;
+  /** Short muted-autoplay clip; the image is its poster. */
+  videoUrl: string | null;
 };
 
 export type AdminBanner = PublicBanner & {
   linkUrl: string;
   imageId: string | null;
+  videoId: string | null;
   startDate: string;
   endDate: string;
   isActive: boolean;
@@ -42,6 +46,7 @@ type BannerLean = {
   sponsorName?: string | null;
   linkUrl: string;
   imageId?: Types.ObjectId | null;
+  videoId?: Types.ObjectId | null;
   startsAt: Date;
   endsAt: Date;
   isActive?: boolean | null;
@@ -49,9 +54,10 @@ type BannerLean = {
 };
 
 const imageUrl = (id: Types.ObjectId | null | undefined) => (id ? `/api/banner-images/${id.toString()}` : null);
+const videoUrl = (id: Types.ObjectId | null | undefined) => (id ? `/api/banner-videos/${id.toString()}` : null);
 
 function toPublic(b: BannerLean): PublicBanner {
-  return { id: b._id.toString(), title: b.title, subtitle: b.subtitle ?? "", ctaLabel: b.ctaLabel || "Learn more", sponsorName: b.sponsorName ?? "", imageUrl: imageUrl(b.imageId) };
+  return { id: b._id.toString(), title: b.title, subtitle: b.subtitle ?? "", ctaLabel: b.ctaLabel || "Learn more", sponsorName: b.sponsorName ?? "", imageUrl: imageUrl(b.imageId), videoUrl: videoUrl(b.videoId) };
 }
 
 /** Banners to show on the home page now. Cached; admin changes invalidate it. */
@@ -87,6 +93,7 @@ function toAdmin(b: BannerLean, now: Date, stats: AdTotals | undefined): AdminBa
     ...toPublic(b),
     linkUrl: b.linkUrl,
     imageId: b.imageId ? b.imageId.toString() : null,
+    videoId: b.videoId ? b.videoId.toString() : null,
     startDate: dayKey(b.startsAt),
     endDate: dayKey(new Date(b.endsAt.getTime() - 1)),
     isActive: active,
@@ -104,6 +111,7 @@ function toFields(input: BannerInput) {
     sponsorName: input.sponsorName,
     linkUrl: input.linkUrl,
     imageId: input.imageId ? new Types.ObjectId(input.imageId) : null,
+    videoId: input.videoId ? new Types.ObjectId(input.videoId) : null,
     startsAt: startOfDayInZone(input.startDate),
     endsAt: endOfDayInZone(input.endDate),
     isActive: input.isActive,
@@ -111,15 +119,18 @@ function toFields(input: BannerInput) {
   };
 }
 
-async function assertImageExists(imageId: string | null) {
-  if (imageId && !(await BannerImage.exists({ _id: imageId }))) {
+async function assertMediaExists(input: BannerInput) {
+  if (input.imageId && !(await BannerImage.exists({ _id: input.imageId }))) {
     throw ApiError.badRequest("That image wasn't found. Upload it again.", { fieldErrors: { imageId: ["Upload the image again"] } });
+  }
+  if (input.videoId && !(await BannerVideo.exists({ _id: input.videoId }))) {
+    throw ApiError.badRequest("That video wasn't found. Upload it again.", { fieldErrors: { videoId: ["Upload the video again"] } });
   }
 }
 
 export async function createBanner(admin: SessionUser, input: BannerInput): Promise<string> {
   await connectDB();
-  await assertImageExists(input.imageId);
+  await assertMediaExists(input);
   const b = await Banner.create(toFields(input));
   await logAdminAction(admin, "ads.banner.created", "platform", null, input.title);
   revalidateTag(BANNERS_TAG, { expire: 0 });
@@ -128,11 +139,12 @@ export async function createBanner(admin: SessionUser, input: BannerInput): Prom
 
 export async function updateBanner(admin: SessionUser, id: string, input: BannerInput): Promise<void> {
   await connectDB();
-  await assertImageExists(input.imageId);
-  const old = await Banner.findOneAndUpdate({ _id: id }, { $set: toFields(input) }, { projection: { imageId: 1 } }).lean();
+  await assertMediaExists(input);
+  const old = await Banner.findOneAndUpdate({ _id: id }, { $set: toFields(input) }, { projection: { imageId: 1, videoId: 1 } }).lean();
   if (!old) throw ApiError.notFound("Banner not found");
-  // Drop the previous image if it was replaced.
+  // Drop the previous image or video if it was replaced or removed.
   if (old.imageId && old.imageId.toString() !== input.imageId) await BannerImage.deleteOne({ _id: old.imageId });
+  if (old.videoId && old.videoId.toString() !== input.videoId) await BannerVideo.deleteOne({ _id: old.videoId });
   await logAdminAction(admin, "ads.banner.updated", "platform", null, input.title);
   revalidateTag(BANNERS_TAG, { expire: 0 });
 }
@@ -142,6 +154,7 @@ export async function deleteBanner(admin: SessionUser, id: string): Promise<void
   const b = await Banner.findOneAndDelete({ _id: id }).lean();
   if (!b) throw ApiError.notFound("Banner not found");
   if (b.imageId) await BannerImage.deleteOne({ _id: b.imageId });
+  if (b.videoId) await BannerVideo.deleteOne({ _id: b.videoId });
   await logAdminAction(admin, "ads.banner.deleted", "platform", null, b.title);
   revalidateTag(BANNERS_TAG, { expire: 0 });
 }
@@ -171,6 +184,31 @@ export async function getBannerImage(id: string): Promise<{ contentType: string;
   // Lean reads return BSON Binary rather than a Buffer.
   const raw = img.data as unknown as Buffer | { buffer: Uint8Array };
   return { contentType: img.contentType, data: Buffer.isBuffer(raw) ? raw : Buffer.from(raw.buffer) };
+}
+
+/** Recognize MP4 ("ftyp" box at byte 4) or WebM (EBML header) from the bytes. */
+export function sniffVideoType(bytes: Uint8Array): "video/mp4" | "video/webm" | null {
+  if (bytes.length > 12 && String.fromCharCode(...bytes.slice(4, 8)) === "ftyp") return "video/mp4";
+  if (bytes.length > 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return "video/webm";
+  return null;
+}
+
+export async function saveBannerVideo(bytes: Uint8Array): Promise<string> {
+  if (bytes.length > MAX_BANNER_VIDEO_BYTES) throw ApiError.payloadTooLarge(MAX_BANNER_VIDEO_BYTES);
+  const contentType = sniffVideoType(bytes);
+  if (!contentType) throw ApiError.badRequest("Upload an MP4 or WebM video");
+  await connectDB();
+  const v = await BannerVideo.create({ contentType, size: bytes.length, data: Buffer.from(bytes) });
+  return v._id.toString();
+}
+
+export async function getBannerVideo(id: string): Promise<{ contentType: string; data: Buffer } | null> {
+  if (!Types.ObjectId.isValid(id)) return null;
+  await connectDB();
+  const v = await BannerVideo.findById(id).lean();
+  if (!v) return null;
+  const raw = v.data as unknown as Buffer | { buffer: Uint8Array };
+  return { contentType: v.contentType, data: Buffer.isBuffer(raw) ? raw : Buffer.from(raw.buffer) };
 }
 
 /** Where a banner click should go; null if the banner isn't showing right now. */

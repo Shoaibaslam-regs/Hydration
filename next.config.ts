@@ -13,6 +13,8 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data: https://*.tile.openstreetmap.org",
   "font-src 'self'",
+  // Banner videos; blob: lets the admin form read a clip's length before uploading.
+  "media-src 'self' blob:",
   "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
