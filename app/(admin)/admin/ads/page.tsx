@@ -11,9 +11,9 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterTabs } from "@/components/ui/filter-tabs";
 import { Pagination } from "@/components/ui/pagination";
-import { SPONSORED_SLOTS, type CampaignStatus } from "@/lib/ads/constants";
+import { SPONSOR_PLAN_MONTHLY_PRICE, SPONSORED_SLOTS, type CampaignStatus } from "@/lib/ads/constants";
 import { requireRole } from "@/lib/auth/session";
-import { formatDateTime, formatDayRange } from "@/lib/catalog";
+import { formatDateTime, formatDayRange, formatPrice } from "@/lib/catalog";
 import { listBannersForAdmin } from "@/lib/services/ads/banners";
 import { listDealsForAdmin } from "@/lib/services/ads/deals";
 import { listCampaignsForAdmin } from "@/lib/services/ads/sponsored";
@@ -90,8 +90,9 @@ async function SponsoredTab({ query }: { query: Query }) {
         <CardTitle>How sponsorship works</CardTitle>
         <CardDescription>
           Up to {SPONSORED_SLOTS} sponsored shops show above page 1 of a located search, picked at random from shops that match the
-          customer&apos;s filters and deliver to them. Shops on the Pro plan are included automatically. Others request a campaign,
-          pay you outside the site, and you approve it here.
+          customer&apos;s filters and deliver to them. Shops request the Sponsored plan ({formatPrice(SPONSOR_PLAN_MONTHLY_PRICE)}/month,
+          1–3 months) from their dashboard, which also sends you a message in Support. They pay outside the site; approve the request
+          here once the money arrives. The plan runs from approval, or after the shop&apos;s current sponsorship ends.
         </CardDescription>
         <SponsorshipInfoForm initial={settings.sponsorshipInfo} />
       </Card>
@@ -122,8 +123,13 @@ async function SponsoredTab({ query }: { query: Query }) {
                       <Link href={`/admin/shops/${c.shopId}`} className="font-medium text-primary hover:underline">
                         {c.shopName}
                       </Link>
+                      {c.months && (
+                        <span className="text-sm font-semibold text-premium">
+                          Sponsored plan · {c.months} {c.months === 1 ? "month" : "months"} · {formatPrice(c.amount ?? 0)}
+                        </span>
+                      )}
                       <span className="text-sm">
-                        {formatDayRange(c.startsAt, c.endsAt)}
+                        {c.months && c.status === "pending" ? "Starts when you approve it" : formatDayRange(c.startsAt, c.endsAt)}
                       </span>
                       <span className="text-xs text-muted-foreground">Requested {formatDateTime(c.createdAt)}</span>
                       {c.note && <span className="text-sm text-muted-foreground">Note: {c.note}</span>}

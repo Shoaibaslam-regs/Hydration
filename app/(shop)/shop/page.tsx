@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { SponsorPlanCard } from "@/components/ads/shop-promote-forms";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { ShopAvailability } from "@/components/shopkeeper/shop-availability";
@@ -11,7 +13,10 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { IdChip } from "@/components/ui/id-chip";
 import { StarCustomerBadge, StarShopBadge } from "@/components/shops/star-badge";
 import { requireRole } from "@/lib/auth/session";
-import { formatDateTime, formatPrice } from "@/lib/catalog";
+import { isShopLocked } from "@/lib/billing/lock";
+import { formatDateTime, formatDayRange, formatPrice } from "@/lib/catalog";
+import { listMyCampaigns } from "@/lib/services/ads/sponsored";
+import { getPlatformSettings } from "@/lib/services/platform-settings";
 import { getMyShop, getMyShopStats } from "@/lib/services/my-shop";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { getMyBilling } from "@/lib/services/billing";
@@ -31,6 +36,7 @@ export default function ShopDashboardPage() {
 async function ShopOverview() {
   const user = await requireRole(["shopkeeper"], "/shop");
   const shop = await getMyShop(user.id);
+  if (shop && isShopLocked(shop)) redirect("/shop/billing?locked=1");
 
   if (!shop) {
     return (
@@ -50,12 +56,16 @@ async function ShopOverview() {
     );
   }
 
-  const [stats, recent, billing, profile] = await Promise.all([
+  const [stats, recent, billing, profile, campaigns, settings] = await Promise.all([
     getMyShopStats(shop.id),
     listShopOrders(shop, { page: 1, limit: 5 }),
     getMyBilling(shop),
     getProfile(user.id),
+    listMyCampaigns(shop),
+    getPlatformSettings(),
   ]);
+  const running = campaigns.find((c) => c.running);
+  const pendingSponsor = campaigns.some((c) => c.status === "pending");
   const plan = billing.subscription;
 
   const tiles = [
@@ -91,6 +101,29 @@ async function ShopOverview() {
           </Link>
         ))}
       </div>
+
+      {shop.status === "verified" &&
+        (running ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-premium/50 bg-premium-soft px-4 py-3 text-sm">
+            <span>
+              <span className="font-semibold text-premium">★ Sponsored</span> · your shop is at the top of search ({formatDayRange(running.startsAt, running.endsAt)}).
+            </span>
+            <Link href="/shop/promote" className="font-medium text-primary hover:underline">
+              Views &amp; clicks
+            </Link>
+          </div>
+        ) : pendingSponsor ? (
+          <div className="rounded-xl border border-premium/50 bg-premium-soft px-4 py-3 text-sm">
+            <span className="font-semibold text-premium">★ Sponsored plan requested.</span> The Aqua team will start it once your payment
+            is confirmed. Follow up in{" "}
+            <Link href="/shop/support" className="font-medium text-primary hover:underline">
+              Contact Aqua
+            </Link>
+            .
+          </div>
+        ) : (
+          <SponsorPlanCard paymentInfo={settings.sponsorshipInfo} compact />
+        ))}
 
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between">

@@ -26,4 +26,10 @@ describe("admin schemas", () => {
     expect(settingsUpdateSchema.parse({ paymentInstructions: " Pay here " })).toEqual({ paymentInstructions: "Pay here" });
     expect(settingsUpdateSchema.safeParse({ requireSubscription: true }).success).toBe(false);
   });
+
+  it("stores a valid IBAN without spaces and refuses a wrong one", () => {
+    expect(settingsUpdateSchema.parse({ iban: "pk36 scbl 0000 0011 2345 6702" })).toEqual({ iban: "PK36SCBL0000001123456702" });
+    expect(settingsUpdateSchema.parse({ iban: "" })).toEqual({ iban: "" });
+    expect(settingsUpdateSchema.safeParse({ iban: "PK37SCBL0000001123456702" }).success).toBe(false);
+  });
 });

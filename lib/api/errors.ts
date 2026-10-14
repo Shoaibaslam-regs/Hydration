@@ -6,6 +6,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "PAYLOAD_TOO_LARGE"
+  | "PLAN_ENDED"
   | "UPSTREAM_ERROR"
   | "RATE_LIMITED"
   | "INTERNAL_ERROR";
@@ -22,6 +23,10 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 
+  /** The shop's plan has ended; it's locked until a payment is approved (402 Payment Required). */
+  static planEnded(message: string) {
+    return new ApiError(402, "PLAN_ENDED", message);
+  }
   static badRequest(message = "Bad request", details?: unknown) {
     return new ApiError(400, "BAD_REQUEST", message, details);
   }

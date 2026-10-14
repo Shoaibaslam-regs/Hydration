@@ -57,10 +57,18 @@ async function SubscriptionsContent({ searchParams }: { searchParams: PageProps<
         <CardTitle>Plans</CardTitle>
         <CardDescription>
           New shops get a {TRIAL_DAYS}-day free trial when you approve them, then pay {formatPrice(PLANS[0].monthlyPrice)} a month.
-          Shops whose trial or plan has ended are hidden from search until a payment is approved
+          When a trial or month ends, the shop is hidden from search and its dashboard is locked (only Billing, Contact Aqua and
+          the profile stay open) until you approve a payment
           {withoutPlan > 0 && ` (${withoutPlan} approved ${withoutPlan === 1 ? "shop is" : "shops are"} hidden right now)`}.
         </CardDescription>
-        <SettingsForm paymentInstructions={settings.paymentInstructions} />
+        <SettingsForm
+          initial={{
+            bankName: settings.bankName,
+            accountTitle: settings.accountTitle,
+            iban: settings.iban,
+            paymentInstructions: settings.paymentInstructions,
+          }}
+        />
       </Card>
 
       <section className="flex flex-col gap-3">

@@ -7,6 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
+import { formatIban } from "@/lib/billing/iban";
+import { isShopLocked } from "@/lib/billing/lock";
+import type { Settings } from "@/lib/services/platform-settings";
+import { CopyButton } from "@/components/ui/copy-button";
+import { IdChip } from "@/components/ui/id-chip";
 import { PAYMENT_METHOD_LABELS } from "@/lib/billing/constants";
 import { formatDateTime, formatPrice } from "@/lib/catalog";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
@@ -27,13 +32,33 @@ export default function BillingPage() {
 }
 
 async function BillingContent() {
-  const { shop } = await requireShopkeeperShop("/shop/billing");
+  const { shop } = await requireShopkeeperShop("/shop/billing", { allowLocked: true });
   const [{ subscription, payments }, settings] = await Promise.all([getMyBilling(shop), getPlatformSettings()]);
   const waiting = payments.find((p) => p.status === "pending");
   const lastRejected = payments[0]?.status === "rejected" ? payments[0] : null;
+  const locked = isShopLocked(shop);
 
   return (
     <>
+      {locked && (
+        <div role="alert" className="flex flex-col gap-1 rounded-xl border-2 border-danger/50 bg-danger/10 p-4">
+          <p className="flex items-center gap-2 text-lg font-bold text-danger">
+            <LockIcon /> Your shop is locked
+          </p>
+          <p className="text-sm">
+            {subscription
+              ? `Your ${subscription.isTrial ? "free trial" : "plan"} ended ${formatDateTime(subscription.endsAt)}.`
+              : "Your shop doesn't have a plan yet."}{" "}
+            Customers can&apos;t find your shop or order from it, and your dashboard is locked until your monthly fee of{" "}
+            <span className="font-semibold">{formatPrice(PLANS[0].monthlyPrice)}</span> is paid.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {waiting
+              ? "We have your payment. Your shop unlocks as soon as the Aqua team confirms it."
+              : "Pay to the account below, then send us the transaction ID. Your shop unlocks as soon as we confirm it."}
+          </p>
+        </div>
+      )}
       <Card className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle>Your plan</CardTitle>
@@ -89,14 +114,7 @@ async function BillingContent() {
               Your last payment (ref. {lastRejected.reference}) wasn&apos;t approved: {lastRejected.reviewReason}
             </p>
           )}
-          <div className="rounded-lg border border-border p-3 text-sm">
-            <p className="mb-1 font-medium">How to pay</p>
-            {settings.paymentInstructions ? (
-              <p className="whitespace-pre-line text-muted-foreground">{settings.paymentInstructions}</p>
-            ) : (
-              <p className="text-muted-foreground">Payment details haven&apos;t been published yet. Please contact the Aqua team.</p>
-            )}
-          </div>
+          <PayTo settings={settings} shopPublicId={shop.publicId} />
           <PaymentForm />
           <p className="text-xs text-muted-foreground">Included: {PLANS[0].features.join(", ")}.</p>
         </Card>
@@ -145,5 +163,74 @@ async function BillingContent() {
         )}
       </Card>
     </>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
+/** Where to send the monthly fee: the bank account (IBAN) with copy buttons, then any other ways to pay. */
+function PayTo({ settings, shopPublicId }: { settings: Settings; shopPublicId: string }) {
+  const hasBank = Boolean(settings.iban);
+  if (!hasBank && !settings.paymentInstructions) {
+    return (
+      <p className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm">
+        Payment details haven&apos;t been published yet. Please message the Aqua team from Contact Aqua and we&apos;ll send them to you.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      {hasBank && (
+        <div className="flex flex-col gap-3 rounded-xl border border-primary/25 bg-gradient-to-br from-accent/60 via-card to-card p-4">
+          <p className="text-sm font-semibold">Bank transfer</p>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            {settings.bankName && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Bank</dt>
+                <dd className="font-medium">{settings.bankName}</dd>
+              </div>
+            )}
+            {settings.accountTitle && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Account title</dt>
+                <dd className="flex flex-wrap items-center gap-2 font-medium">
+                  {settings.accountTitle}
+                  <CopyButton value={settings.accountTitle} label="account title" />
+                </dd>
+              </div>
+            )}
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-muted-foreground">IBAN</dt>
+              <dd className="flex flex-wrap items-center gap-2">
+                <span className="select-all font-mono text-base font-bold tracking-wider sm:text-lg">{formatIban(settings.iban)}</span>
+                <CopyButton value={settings.iban} label="IBAN" />
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-muted-foreground">Amount</dt>
+              <dd className="font-semibold">{formatPrice(PLANS[0].monthlyPrice)} per month</dd>
+            </div>
+          </dl>
+          {shopPublicId && (
+            <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              Put your Shop ID in the transfer reference so we can match it: <IdChip id={shopPublicId} label={false} />
+            </p>
+          )}
+        </div>
+      )}
+      {settings.paymentInstructions && (
+        <div className="rounded-lg border border-border p-3 text-sm">
+          <p className="mb-1 font-medium">{hasBank ? "Other ways to pay" : "How to pay"}</p>
+          <p className="whitespace-pre-line text-muted-foreground">{settings.paymentInstructions}</p>
+        </div>
+      )}
+    </div>
   );
 }

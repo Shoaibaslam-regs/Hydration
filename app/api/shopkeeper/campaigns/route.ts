@@ -10,9 +10,9 @@ export const GET = apiHandler(async () => {
   return json({ items: await listMyCampaigns(await requireMyShop(user.id)) });
 });
 
-/** POST /api/shopkeeper/campaigns — { startDate: "YYYY-MM-DD", weeks: 1|2|4, note? } */
+/** POST /api/shopkeeper/campaigns — { months: 1|2|3, note? }: request the Sponsored plan (also messages the team). */
 export const POST = apiHandler(async (req) => {
   const user = await requireApiUser(["shopkeeper"]);
   const shop = await requireMyShop(user.id);
-  return json(await requestCampaign(shop, await parseBody(req, campaignRequestSchema)), 201);
+  return json(await requestCampaign(user, shop, await parseBody(req, campaignRequestSchema)), 201);
 });

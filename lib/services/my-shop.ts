@@ -1,4 +1,5 @@
 import "server-only";
+import { isShopLocked, LOCKED_MESSAGE } from "@/lib/billing/lock";
 import { randomBytes } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { Types } from "mongoose";
@@ -126,10 +127,14 @@ export async function getMyShop(ownerId: string): Promise<MyShop | null> {
   return shop ? toMyShop(shop as unknown as ShopLean) : null;
 }
 
-/** For Route Handlers: the owner's shop, or 404 telling them to register one. */
-export async function requireMyShop(ownerId: string): Promise<MyShop> {
+/**
+ * For Route Handlers: the owner's shop, or 404 telling them to register one.
+ * A locked shop (plan ended) gets 402 unless the route allows it (billing).
+ */
+export async function requireMyShop(ownerId: string, { allowLocked = false }: { allowLocked?: boolean } = {}): Promise<MyShop> {
   const shop = await getMyShop(ownerId);
   if (!shop) throw ApiError.notFound("Register your shop first");
+  if (!allowLocked && isShopLocked(shop)) throw ApiError.planEnded(LOCKED_MESSAGE);
   return shop;
 }
 

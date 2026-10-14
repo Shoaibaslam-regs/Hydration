@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "danger-ghost" | "on-dark";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "danger-ghost" | "on-dark" | "premium";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
@@ -13,6 +13,8 @@ const variants: Record<Variant, string> = {
   "danger-ghost": "text-danger hover:bg-danger/10",
   // Over dark photos (e.g. the home hero), whatever the color theme.
   "on-dark": "border border-white/40 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20",
+  // Paid placements (sponsorship): solid gold.
+  premium: "bg-premium text-premium-foreground shadow-sm hover:opacity-90",
 };
 
 const sizes: Record<Size, string> = {

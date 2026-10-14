@@ -21,6 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
   "subscription.rejected": "Rejected plan payment",
   "settings.requireSubscription.on": "Turned on: require an active plan",
   "settings.requireSubscription.off": "Turned off: require an active plan",
+  "settings.bankAccount": "Updated bank account for payments",
   "settings.paymentInstructions": "Updated payment instructions",
   "settings.sponsorshipInfo": "Updated sponsorship info",
   "ads.campaign.approved": "Approved sponsored campaign",

@@ -32,7 +32,7 @@ export function SponsorshipInfoForm({ initial }: { initial: string }) {
   return (
     <div className="flex flex-col gap-2">
       <FormError message={error} />
-      <Field label="Sponsorship prices and how to pay" hint="Shown on every shop's Promote page, e.g. “1 week PKR 1,500 · 2 weeks PKR 2,500 · 4 weeks PKR 4,000. Pay to …”">
+      <Field label="How to pay for the Sponsored plan" hint="Shown on the Sponsored plan card on every shop's Promote page, e.g. “JazzCash 0300 1234567 (Aqua Pvt Ltd). Put your shop name in the reference.” The price is fixed in the app.">
         {(p) => <Textarea {...p} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} rows={4} />}
       </Field>
       <div className="flex items-center gap-3">

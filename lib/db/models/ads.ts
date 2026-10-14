@@ -8,6 +8,9 @@ const campaignSchema = new Schema(
     startsAt: { type: Date, required: true },
     endsAt: { type: Date, required: true },
     status: { type: String, enum: CAMPAIGN_STATUSES, required: true, default: "pending" },
+    /** Sponsored plan length and price (minor units, computed on the server). Null on older week-based campaigns. */
+    months: { type: Number, default: null },
+    amount: { type: Number, default: null },
     /** Shopkeeper's note, e.g. the payment reference. */
     note: { type: String, default: "", trim: true, maxlength: 300 },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },

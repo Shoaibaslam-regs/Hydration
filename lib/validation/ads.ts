@@ -9,10 +9,9 @@ export const dealInputSchema = z.object({
 });
 export type DealInput = z.infer<typeof dealInputSchema>;
 
+/** A Sponsored plan request: how many months, and an optional note (e.g. the payment reference). */
 export const campaignRequestSchema = z.object({
-  /** First day of the campaign, YYYY-MM-DD (in the app time zone). */
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a start date"),
-  weeks: z.union([z.literal(1), z.literal(2), z.literal(4)], { error: "Choose how long it runs" }),
+  months: z.union([z.literal(1), z.literal(2), z.literal(3)], { error: "Choose 1, 2 or 3 months" }),
   note: z.string().trim().max(300).default(""),
 });
 export type CampaignRequest = z.infer<typeof campaignRequestSchema>;

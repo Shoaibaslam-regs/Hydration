@@ -4,7 +4,11 @@ import { Schema, model, models, type InferSchemaType } from "mongoose";
 const platformSettingsSchema = new Schema(
   {
     _id: { type: String, default: "platform" },
-    /** Where shopkeepers send subscription payments (account numbers etc.), shown on their billing page. */
+    /** Bank account shopkeepers pay their monthly fee into, shown on their billing page. IBAN stored normalized. */
+    bankName: { type: String, default: "", maxlength: 80 },
+    accountTitle: { type: String, default: "", maxlength: 120 },
+    iban: { type: String, default: "", maxlength: 34 },
+    /** Other ways to pay (JazzCash, Easypaisa…) and notes, shown under the bank account. */
     paymentInstructions: { type: String, default: "", maxlength: 2000 },
     /** Sponsorship price and how to pay, shown on shopkeepers' Promote page. */
     sponsorshipInfo: { type: String, default: "", maxlength: 2000 },

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidIban, normalizeIban } from "@/lib/billing/iban";
 import { PAYMENT_METHODS, SUBSCRIPTION_PAYMENT_STATUSES } from "@/lib/billing/constants";
 import { PLANS } from "@/lib/plans";
 import { paginationSchema } from "./pagination";
@@ -26,6 +27,13 @@ export const adminPaymentDecisionSchema = z.discriminatedUnion("decision", [
 
 export const settingsUpdateSchema = z
   .object({
+    bankName: z.string().trim().max(80),
+    accountTitle: z.string().trim().max(120),
+    // Empty clears it; otherwise a valid IBAN, stored without spaces.
+    iban: z
+      .string()
+      .transform(normalizeIban)
+      .refine((v) => v === "" || isValidIban(v), "Enter a valid IBAN, e.g. PK36 SCBL 0000 0011 2345 6702"),
     paymentInstructions: z.string().trim().max(2000),
     sponsorshipInfo: z.string().trim().max(2000),
   })

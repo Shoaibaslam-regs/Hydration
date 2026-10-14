@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { dayKey } from "@/lib/ads/dates";
 import { hashPassword } from "@/lib/auth/password";
 import { AdminAction, Deal, Order, Review, Shop, SponsoredCampaign, SubscriptionPayment, SupportThread, User } from "@/lib/db/models";
 import { createShop, createUser, placeTestOrder } from "@/test/fixtures";
@@ -87,16 +86,16 @@ describe("reviews", () => {
 describe("ads history", () => {
   it("shops withdraw pending and hide finished campaigns; running ones stay; admins delete finished", async () => {
     const admin = await createUser("admin");
-    const shop = await createShop(await createUser("shopkeeper"));
-    const today = dayKey(new Date());
+    const owner = await createUser("shopkeeper");
+    const shop = await createShop(owner);
 
-    const pending = await requestCampaign(shop, { startDate: today, weeks: 1, note: "" });
+    const pending = await requestCampaign(owner, shop, { months: 1, note: "" });
     expect(await removeMyCampaign(shop, pending.id)).toBe("withdrawn");
     expect(await removeMyCampaign(shop, pending.id)).toBe("removed"); // now cancelled → hidden
     expect(await listMyCampaigns(shop)).toEqual([]);
     expect(await SponsoredCampaign.exists({ _id: pending.id })).not.toBeNull(); // admin still has it
 
-    const running = await requestCampaign(shop, { startDate: today, weeks: 1, note: "" });
+    const running = await requestCampaign(owner, shop, { months: 1, note: "" });
     await decideCampaign(admin, running.id, { decision: "approve" });
     await expect(removeMyCampaign(shop, running.id)).rejects.toMatchObject({ status: 409 });
     await expect(deleteCampaignAsAdmin(admin, running.id)).rejects.toMatchObject({ status: 409 });

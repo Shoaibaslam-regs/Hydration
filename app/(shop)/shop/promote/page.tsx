@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { AdminActions } from "@/components/admin/admin-actions";
-import { CampaignRequestForm, DealForm } from "@/components/ads/shop-promote-forms";
+import { DealForm, SponsorPlanCard } from "@/components/ads/shop-promote-forms";
 import { PageSkeleton } from "@/components/dashboard/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { MAX_RUNNING_DEALS } from "@/lib/ads/constants";
-import { dayKey } from "@/lib/ads/dates";
 import { requireShopkeeperShop } from "@/lib/auth/shopkeeper";
-import { formatDateTime, formatDayRange } from "@/lib/catalog";
+import { formatDateTime, formatDayRange, formatPrice } from "@/lib/catalog";
 import { listMyDeals } from "@/lib/services/ads/deals";
 import { adTotals } from "@/lib/services/ads/stats";
 import { isSponsoredNow, listMyCampaigns } from "@/lib/services/ads/sponsored";
@@ -81,19 +81,15 @@ async function PromoteContent() {
         {!approved ? (
           <CardDescription>Sponsorship is available once your shop is approved.</CardDescription>
         ) : pendingRequest ? (
-          <CardDescription>Your request is waiting for review. We&apos;ll approve it once your payment is confirmed.</CardDescription>
+          <CardDescription>
+            Your Sponsored plan request is waiting for review, and the team has your message in{" "}
+            <Link href="/shop/support" className="font-medium text-primary hover:underline">
+              Contact Aqua
+            </Link>
+            . It starts once your payment is confirmed.
+          </CardDescription>
         ) : (
-          <div className="flex flex-col gap-3 border-t border-border pt-4">
-            <p className="text-sm font-medium">Request a sponsored campaign</p>
-            <div className="rounded-lg border border-border p-3 text-sm">
-              {settings.sponsorshipInfo ? (
-                <p className="whitespace-pre-line text-muted-foreground">{settings.sponsorshipInfo}</p>
-              ) : (
-                <p className="text-muted-foreground">Contact the Aqua team for sponsorship prices.</p>
-              )}
-            </div>
-            <CampaignRequestForm today={dayKey(new Date())} />
-          </div>
+          <SponsorPlanCard paymentInfo={settings.sponsorshipInfo} />
         )}
 
         {campaigns.length > 0 && (
@@ -104,8 +100,9 @@ async function PromoteContent() {
                 <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                   <span className="flex flex-col">
                     <span className="font-medium">
-                      {formatDayRange(c.startsAt, c.endsAt)}
+                      {c.months ? `Sponsored plan · ${c.months} ${c.months === 1 ? "month" : "months"} · ${formatPrice(c.amount ?? 0)}` : formatDayRange(c.startsAt, c.endsAt)}
                     </span>
+                    {c.months && c.status !== "pending" && <span className="text-xs text-muted-foreground">{formatDayRange(c.startsAt, c.endsAt)}</span>}
                     {c.reviewReason && <span className="text-xs text-muted-foreground">{c.reviewReason}</span>}
                   </span>
                   <span className="flex items-center gap-2">
