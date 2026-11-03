@@ -48,8 +48,8 @@ export class ApiError extends Error {
   static upstream(message = "A service we depend on isn't responding. Please try again.") {
     return new ApiError(502, "UPSTREAM_ERROR", message);
   }
-  static rateLimited(retryAfterSeconds: number) {
-    return new ApiError(429, "RATE_LIMITED", "Too many attempts. Please try again later.", { retryAfterSeconds });
+  static rateLimited(retryAfterSeconds: number, message = "Too many attempts. Please try again later.") {
+    return new ApiError(429, "RATE_LIMITED", message, { retryAfterSeconds });
   }
 }
 

@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { TRIAL_DAYS } from "@/lib/plans";
 import { describe, expect, it } from "vitest";
 import { rateLimit } from "@/lib/api/rate-limit";
 import { AdminAction, Order, Shop, User } from "@/lib/db/models";
@@ -92,8 +93,8 @@ describe("admin", () => {
     const trial = (await Shop.findById(shop.id).lean())!;
     expect(trial.subscription).toMatchObject({ planId: "trial" });
     const days = (trial.subscription!.endsAt.getTime() - Date.now()) / 864e5;
-    expect(days).toBeGreaterThan(2.99);
-    expect(days).toBeLessThanOrEqual(3);
+    expect(days).toBeGreaterThan(TRIAL_DAYS - 0.01);
+    expect(days).toBeLessThanOrEqual(TRIAL_DAYS);
     await setShopStatus(admin, shop.id, "suspended", "Complaints");
     // Reinstating doesn't restart the trial.
     await Shop.updateOne({ _id: shop.id }, { "subscription.endsAt": new Date(Date.now() - 1000) });

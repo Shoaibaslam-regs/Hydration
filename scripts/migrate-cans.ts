@@ -15,6 +15,7 @@ import { connectDB } from "../lib/db/connect";
 import { PlatformSettings, Shop } from "../lib/db/models";
 import { TRIAL_DAYS, TRIAL_PLAN_ID } from "../lib/plans";
 import { shopSearchText } from "../lib/search/text";
+import { extendTrialsToCurrentLength } from "../lib/services/billing";
 import { backfillPublicIds } from "../lib/services/public-ids";
 
 async function main() {
@@ -27,6 +28,7 @@ async function main() {
     { $set: { trialStartedAt: now, subscription: { planId: TRIAL_PLAN_ID, endsAt: new Date(now.getTime() + TRIAL_DAYS * 864e5) } } },
   );
   console.log(`Free trials started: ${trials.modifiedCount}`);
+  console.log(`Running trials extended to ${TRIAL_DAYS} days: ${await extendTrialsToCurrentLength()}`);
 
   let priced = 0;
   const unpriced = await Shop.find({ $or: [{ pricePerCan: null }, { pricePerCan: { $exists: false } }] }, { _id: 1 }).lean();

@@ -8,6 +8,8 @@ import { Field, Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { postLoginPath, safeNextPath, type UserRole } from "@/lib/auth/roles";
 import { FormError } from "./form-error";
+import { LockoutNotice } from "./lockout-notice";
+import { formatCountdown, useLockout } from "./use-lockout";
 
 export function LoginForm() {
   const router = useRouter();
@@ -15,6 +17,7 @@ export function LoginForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[] | undefined>>({});
+  const { secondsLeft, lock } = useLockout();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -26,7 +29,10 @@ export function LoginForm() {
     });
     if (!result.ok) {
       setPending(false);
-      setError(result.message);
+      if (result.status === 429 && result.retryAfterSeconds) {
+        lock(result.retryAfterSeconds);
+        setError(null);
+      } else setError(result.message);
       setFieldErrors(result.fieldErrors);
       return;
     }
@@ -36,6 +42,7 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+      <LockoutNotice secondsLeft={secondsLeft} />
       <FormError message={error} />
       <Field label="Email" error={fieldErrors.email?.[0]}>
         {(p) => <Input {...p} name="email" type="email" autoComplete="email" required />}
@@ -43,8 +50,8 @@ export function LoginForm() {
       <Field label="Password" error={fieldErrors.password?.[0]}>
         {(p) => <Input {...p} name="password" type="password" autoComplete="current-password" required />}
       </Field>
-      <Button type="submit" size="lg" disabled={pending}>
-        {pending ? "Logging in…" : "Log in"}
+      <Button type="submit" size="lg" disabled={pending || secondsLeft > 0}>
+        {secondsLeft > 0 ? `Try again in ${formatCountdown(secondsLeft)}` : pending ? "Logging in…" : "Log in"}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
         Forgot your password? Contact the Aqua team and we&apos;ll send you a reset link.

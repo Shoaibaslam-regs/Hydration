@@ -9,6 +9,8 @@ import { apiRequest } from "@/lib/api/client";
 import { postLoginPath, safeNextPath, type UserRole } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
 import { FormError } from "./form-error";
+import { LockoutNotice } from "./lockout-notice";
+import { formatCountdown, useLockout } from "./use-lockout";
 
 const ROLE_OPTIONS = [
   { value: "customer", title: "I want to order water", body: "Find shops nearby and get water delivered." },
@@ -25,6 +27,7 @@ export function RegisterForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[] | undefined>>({});
+  const { secondsLeft, lock } = useLockout();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -42,7 +45,10 @@ export function RegisterForm() {
     });
     if (!result.ok) {
       setPending(false);
-      setError(result.message);
+      if (result.status === 429 && result.retryAfterSeconds) {
+        lock(result.retryAfterSeconds);
+        setError(null);
+      } else setError(result.message);
       setFieldErrors(result.fieldErrors);
       return;
     }
@@ -78,6 +84,7 @@ export function RegisterForm() {
         ))}
       </fieldset>
 
+      <LockoutNotice secondsLeft={secondsLeft} />
       <FormError message={error} />
       <Field label={role === "shopkeeper" ? "Your name (shop owner)" : "Full name"} error={fieldErrors.name?.[0]}>
         {(p) => <Input {...p} name="name" autoComplete="name" required maxLength={80} />}
@@ -91,8 +98,8 @@ export function RegisterForm() {
       <Field label="Password" hint="At least 8 characters." error={fieldErrors.password?.[0]}>
         {(p) => <Input {...p} name="password" type="password" autoComplete="new-password" required minLength={8} />}
       </Field>
-      <Button type="submit" size="lg" disabled={pending}>
-        {pending ? "Creating account…" : "Create account"}
+      <Button type="submit" size="lg" disabled={pending || secondsLeft > 0}>
+        {secondsLeft > 0 ? `Try again in ${formatCountdown(secondsLeft)}` : pending ? "Creating account…" : "Create account"}
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}

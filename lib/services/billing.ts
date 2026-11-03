@@ -107,6 +107,24 @@ export async function startTrial(shopId: Types.ObjectId | string, now = new Date
   return res.modifiedCount > 0;
 }
 
+/**
+ * After TRIAL_DAYS changes: give every shop still on its free trial (never
+ * paid) the full current trial length, counted from when it started. Only
+ * ever extends, and also unlocks shops whose shorter trial already ran out.
+ * Safe to re-run. Returns how many shops changed.
+ */
+export async function extendTrialsToCurrentLength(): Promise<number> {
+  await connectDB();
+  const res = await Shop.collection.updateMany({ "subscription.planId": TRIAL_PLAN_ID, trialStartedAt: { $ne: null } }, [
+    {
+      $set: {
+        "subscription.endsAt": { $max: ["$subscription.endsAt", { $add: ["$trialStartedAt", TRIAL_DAYS * 24 * 60 * 60 * 1000] }] },
+      },
+    },
+  ]);
+  return res.modifiedCount;
+}
+
 /** The shop's plan and recent payments, for its billing page. */
 export async function getMyBilling(shop: MyShop): Promise<{ subscription: ShopSubscription; payments: PaymentDTO[] }> {
   await connectDB();

@@ -3,13 +3,23 @@ import { AdminAction, Shop, SubscriptionPayment } from "@/lib/db/models";
 import { shopSearchSchema } from "@/lib/validation/shops";
 import { createShop, createUser, HOME, placeTestOrder } from "@/test/fixtures";
 import { setupTestDb } from "@/test/db";
-import { PLANS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { adminRemoveShop } from "./admin/shops";
 import { getRevenueAnalytics } from "./analytics";
-import { approveSubscriptionPayment, countShopsWithoutActivePlan, getMyBilling, rejectSubscriptionPayment, startTrial, submitSubscriptionPayment } from "./billing";
+import {
+  approveSubscriptionPayment,
+  countShopsWithoutActivePlan,
+  extendTrialsToCurrentLength,
+  getMyBilling,
+  rejectSubscriptionPayment,
+  startTrial,
+  submitSubscriptionPayment,
+} from "./billing";
 import { searchShops } from "./shops";
 
 setupTestDb();
+
+const DAY = 24 * 60 * 60 * 1000;
 
 const MONTHLY = PLANS[0].monthlyPrice;
 const pay = { planId: "monthly" as const, months: 3 as const, method: "jazzcash" as const, reference: "TXN-1001", note: "" };
@@ -101,6 +111,28 @@ describe("free trial and plan enforcement", () => {
     await approveSubscriptionPayment(admin, p.id);
     expect(await listed()).toBe(1);
     expect(await countShopsWithoutActivePlan()).toBe(0);
+  });
+
+  it(`gives a ${TRIAL_DAYS}-day trial`, async () => {
+    const { shop } = await setup();
+    const now = new Date("2026-11-03T10:00:00Z");
+    await startTrial(shop.id, now);
+    const s = (await Shop.findById(shop.id).lean())!;
+    expect(s.subscription!.endsAt.getTime() - now.getTime()).toBe(TRIAL_DAYS * DAY);
+  });
+
+  it("extends trials started under a shorter length, even expired ones, but never paid plans", async () => {
+    const { shop } = await setup();
+    const started = new Date(Date.now() - 5 * DAY);
+    // An old 3-day trial that ran out two days ago.
+    await Shop.updateOne({ _id: shop.id }, { trialStartedAt: started, subscription: { planId: "trial", endsAt: new Date(started.getTime() + 3 * DAY) } });
+    const paid = await createShop(await createUser("shopkeeper"), { planEndsAt: new Date(Date.now() + 2 * DAY) });
+    await Shop.updateOne({ _id: paid.id }, { trialStartedAt: started });
+
+    expect(await extendTrialsToCurrentLength()).toBe(1);
+    expect((await Shop.findById(shop.id).lean())!.subscription!.endsAt.getTime()).toBe(started.getTime() + TRIAL_DAYS * DAY);
+    expect(await extendTrialsToCurrentLength()).toBe(0); // safe to re-run
+    expect((await Shop.findById(paid.id).lean())!.subscription!.planId).toBe("monthly");
   });
 
   it("adds paid months after the trial when paying during it", async () => {

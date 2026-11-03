@@ -3,7 +3,8 @@
 // pay the monthly plan to stay listed and keep taking orders.
 // Prices are minor currency units (150_000 = PKR 1,500), set by the owner on 2026-10-10.
 
-export const TRIAL_DAYS = 3;
+/** Free trial length, from when an admin first approves the shop (owner changed it from 3 to 30 days on 2026-11-03). */
+export const TRIAL_DAYS = 30;
 /** `Shop.subscription.planId` while the free trial runs. Not something shops can buy. */
 export const TRIAL_PLAN_ID = "trial";
 

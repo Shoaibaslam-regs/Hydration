@@ -15,7 +15,7 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
   const now = new Date();
   const active = { $gt: ["$resetAt", now] };
   const doc = await RateLimit.collection.findOneAndUpdate(
-    { key: createHash("sha256").update(key).digest("hex") },
+    { key: hashKey(key) },
     [
       {
         $set: {
@@ -30,6 +30,51 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
     throw ApiError.rateLimited(Math.max(1, Math.ceil((doc.resetAt.getTime() - now.getTime()) / 1000)));
   }
 }
+
+const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
+
+/**
+ * Failed-attempt lock (login, registration): after `limit` failures within
+ * `lockMs`, `key` is locked for `lockMs` from the last failure. Only failures
+ * count, so people who get it right are never slowed down. Same collection as
+ * rateLimit; the TTL index tidies old entries.
+ */
+export const failureLock = {
+  /** Throws 429 (with the seconds left) while `key` is locked. */
+  async check(key: string, limit: number, message: string): Promise<void> {
+    await connectDB();
+    const doc = await RateLimit.collection.findOne({ key: hashKey(`fail:${key}`) });
+    const now = Date.now();
+    if (doc && doc.count >= limit && doc.resetAt.getTime() > now) {
+      throw ApiError.rateLimited(Math.max(1, Math.ceil((doc.resetAt.getTime() - now) / 1000)), message);
+    }
+  },
+
+  /** Count one failure. Returns tries left, or the lock length in seconds once the limit is reached. */
+  async record(key: string, limit: number, lockMs: number): Promise<{ attemptsLeft: number; lockedForSeconds: number | null }> {
+    await connectDB();
+    const now = new Date();
+    const active = { $gt: ["$resetAt", now] };
+    const doc = await RateLimit.collection.findOneAndUpdate(
+      { key: hashKey(`fail:${key}`) },
+      [
+        // Failures inside the window add up; the window restarts from each failure, so the lock lasts lockMs from the last one.
+        { $set: { count: { $cond: [active, { $add: ["$count", 1] }, 1] }, resetAt: new Date(now.getTime() + lockMs) } },
+      ],
+      { upsert: true, returnDocument: "after" },
+    );
+    const count = doc?.count ?? 1;
+    return count >= limit
+      ? { attemptsLeft: 0, lockedForSeconds: Math.ceil(lockMs / 1000) }
+      : { attemptsLeft: limit - count, lockedForSeconds: null };
+  },
+
+  /** Forget the failures (e.g. after a successful login). */
+  async clear(key: string): Promise<void> {
+    await connectDB();
+    await RateLimit.collection.deleteOne({ key: hashKey(`fail:${key}`) });
+  },
+};
 
 /**
  * Best-effort client IP. X-Forwarded-For is only trustworthy behind a proxy

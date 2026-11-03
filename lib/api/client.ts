@@ -3,7 +3,14 @@ import type { ApiErrorBody } from "./errors";
 
 export type ApiResult<T> =
   | { ok: true; data: T }
-  | { ok: false; status: number; message: string; fieldErrors: Record<string, string[] | undefined> };
+  | {
+      ok: false;
+      status: number;
+      message: string;
+      fieldErrors: Record<string, string[] | undefined>;
+      /** On 429: seconds until the caller may try again. */
+      retryAfterSeconds?: number;
+    };
 
 export async function apiRequest<T>(url: string, init: { method?: string; body?: unknown } = {}): Promise<ApiResult<T>> {
   let res: Response;
@@ -20,11 +27,12 @@ export async function apiRequest<T>(url: string, init: { method?: string; body?:
   if (res.ok) return { ok: true, data: body as T };
 
   const error = (body as ApiErrorBody | null)?.error;
-  const details = error?.details as { fieldErrors?: Record<string, string[]> } | undefined;
+  const details = error?.details as { fieldErrors?: Record<string, string[]>; retryAfterSeconds?: number } | undefined;
   return {
     ok: false,
     status: res.status,
     message: error?.message ?? "Something went wrong",
     fieldErrors: details?.fieldErrors ?? {},
+    retryAfterSeconds: details?.retryAfterSeconds,
   };
 }

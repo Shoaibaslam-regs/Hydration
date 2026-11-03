@@ -70,7 +70,7 @@ export function errorResponse(err: unknown): Response {
 }
 
 /** Like z.flattenError, but nested fields are keyed by full path ("address.city"). */
-function fieldErrorsByPath(err: z.ZodError) {
+export function fieldErrorsByPath(err: z.ZodError) {
   const formErrors: string[] = [];
   const fieldErrors: Record<string, string[]> = {};
   for (const issue of err.issues) {
